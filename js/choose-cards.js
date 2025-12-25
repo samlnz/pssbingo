@@ -1,476 +1,369 @@
-// Winner Page - Improved with proper winning pattern highlighting
+// Choose cards page functionality
 
-class WinnerPage {
+class ChooseCardsPage {
     constructor() {
-        console.log('Winner page initializing...');
+        this.gameState = gameState;
+        this.telegramManager = telegramManager;
         
-        // Get DOM elements
-        this.winnerContainer = document.getElementById('winnerContainer');
-        this.confettiContainer = document.getElementById('confettiContainer');
-        this.winnerAudio = document.getElementById('winnerAudio');
+        // DOM elements
+        this.cardsGrid = document.getElementById('cardsGrid');
+        this.card1Number = document.getElementById('card1Number');
+        this.card2Number = document.getElementById('card2Number');
+        this.card1Preview = document.getElementById('card1Preview');
+        this.card2Preview = document.getElementById('card2Preview');
+        this.cardsSelected = document.getElementById('cardsSelected');
+        this.totalCardsTaken = document.getElementById('totalCardsTaken');
+        this.activePlayers = document.getElementById('activePlayers');
+        this.selectionProgress = document.getElementById('selectionProgress');
+        this.selectionTimer = document.getElementById('selectionTimer');
+        this.randomSelectBtn = document.getElementById('randomSelectBtn');
+        this.clearSelectionBtn = document.getElementById('clearSelectionBtn');
+        this.loadingOverlay = document.getElementById('loadingOverlay');
+        this.loadingText = document.getElementById('loadingText');
+        this.playerName = document.getElementById('playerName');
+        this.playerId = document.getElementById('playerId');
+        this.playerAvatar = document.getElementById('playerAvatar');
         
-        // Initialize
+        // Game state
+        this.takenCards = new Set();
+        this.totalCards = 500;
+        this.maxCards = 2;
+        this.selectionTime = 60;
+        this.timerInterval = null;
+        
         this.init();
     }
 
     init() {
-        console.log('Initializing winner page...');
+        this.setupUserInfo();
+        this.generateTakenCards();
+        this.createCardGrid();
         
-        // Load winner data
-        const winnerData = this.loadWinnerData();
-        console.log('Winner data:', winnerData);
+        // Set initial player count to 0 (no fake players)
+        this.gameState.activePlayers = 0;
         
-        // Verify winning pattern
-        this.verifyWinningPattern(winnerData);
-        
-        // Create confetti
-        this.createConfetti();
-        
-        // Setup audio
-        this.setupAudio();
-        
-        // Display the winner card
-        this.displayWinnerCard(winnerData);
-        
-        // Start auto-redirect countdown
-        this.startAutoRedirect();
-    }
-
-    loadWinnerData() {
-        console.log('Loading winner data from sessionStorage...');
-        
-        try {
-            const savedData = sessionStorage.getItem('bingoWinner');
-            
-            if (savedData) {
-                const data = JSON.parse(savedData);
-                console.log('Data loaded successfully');
-                
-                // Verify data integrity
-                if (!this.verifyDataIntegrity(data)) {
-                    console.warn('Winner data verification failed, using sample data');
-                    return this.getSampleData();
-                }
-                
-                return data;
-            } else {
-                console.warn('No winner data found in sessionStorage, using sample data');
-                return this.getSampleData();
-            }
-        } catch (error) {
-            console.error('Error loading winner data:', error);
-            return this.getSampleData();
-        }
-    }
-
-    // NEW: Verify data integrity
-    verifyDataIntegrity(data) {
-        if (!data || !data.cardNumbers || !data.cardData || !data.cardData.card1) {
-            console.error('Missing required winner data');
-            return false;
-        }
-        
-        // Check if winning lines exist
-        if (data.totalLines <= 0) {
-            console.error('No winning lines reported');
-            return false;
-        }
-        
-        return true;
-    }
-
-    // NEW: Verify winning pattern
-    verifyWinningPattern(winnerData) {
-        const card1 = winnerData.cardData.card1;
-        const card2 = winnerData.cardData.card2;
-        
-        console.log('Verifying winning patterns...');
-        
-        // Verify card 1 winning patterns
-        if (card1.winningCells && card1.winningCells.length > 0) {
-            const winningCells = new Set(card1.winningCells);
-            const markedNumbers = new Set(card1.markedNumbers || []);
-            const calledNumbers = new Set(card1.calledNumbers || []);
-            
-            // Check if all winning cells are properly marked and called
-            for (const cellIndex of card1.winningCells) {
-                if (cellIndex === 12) continue; // Skip free space
-                
-                const row = Math.floor(cellIndex / 5);
-                const col = cellIndex % 5;
-                const numberIndex = col * 5 + row;
-                const number = card1.numbers[numberIndex];
-                
-                if (!markedNumbers.has(number) || !calledNumbers.has(number)) {
-                    console.error(`Card 1: Cell ${cellIndex} (number ${number}) not properly marked/called`);
-                    // Remove invalid winning cell
-                    const index = card1.winningCells.indexOf(cellIndex);
-                    if (index > -1) {
-                        card1.winningCells.splice(index, 1);
-                    }
-                }
-            }
-        }
-        
-        // Verify card 2 winning patterns (if exists)
-        if (winnerData.cardNumbers.length > 1 && card2.winningCells && card2.winningCells.length > 0) {
-            const winningCells = new Set(card2.winningCells);
-            const markedNumbers = new Set(card2.markedNumbers || []);
-            const calledNumbers = new Set(card2.calledNumbers || []);
-            
-            // Check if all winning cells are properly marked and called
-            for (const cellIndex of card2.winningCells) {
-                if (cellIndex === 12) continue; // Skip free space
-                
-                const row = Math.floor(cellIndex / 5);
-                const col = cellIndex % 5;
-                const numberIndex = col * 5 + row;
-                const number = card2.numbers[numberIndex];
-                
-                if (!markedNumbers.has(number) || !calledNumbers.has(number)) {
-                    console.error(`Card 2: Cell ${cellIndex} (number ${number}) not properly marked/called`);
-                    // Remove invalid winning cell
-                    const index = card2.winningCells.indexOf(cellIndex);
-                    if (index > -1) {
-                        card2.winningCells.splice(index, 1);
-                    }
-                }
-            }
-        }
-        
-        // Update total lines count
-        winnerData.totalLines = card1.winningLines.length + (card2.winningLines || []).length;
-    }
-
-    getSampleData() {
-        // Generate realistic sample data with verified winning pattern
-        const cardNumbers = BingoUtils.generatePersistentBingoCard(123);
-        
-        // Create a valid winning pattern (first row)
-        const winningCells = [0, 1, 2, 3, 4]; // First row
-        const calledNumbers = new Set();
-        const markedNumbers = new Set();
-        
-        // Mark the first row numbers
-        for (let i = 0; i < 5; i++) {
-            const numberIndex = i * 5; // Column B, row 0-4
-            const number = cardNumbers[numberIndex];
-            calledNumbers.add(number);
-            markedNumbers.add(number);
-        }
-        
-        return {
-            playerName: 'Telegram User',
-            playerId: '1234',
-            cardNumbers: [123, 456],
-            winningLines: { card1: 1, card2: 0 },
-            totalLines: 1,
-            gameTime: 45,
-            calledNumbers: 18,
-            cardData: {
-                card1: {
-                    numbers: cardNumbers,
-                    markedNumbers: Array.from(markedNumbers),
-                    winningCells: winningCells,
-                    winningLines: ['Row 1'],
-                    calledNumbers: Array.from(calledNumbers)
-                },
-                card2: {
-                    numbers: BingoUtils.generatePersistentBingoCard(456),
-                    markedNumbers: [],
-                    winningCells: [],
-                    winningLines: [],
-                    calledNumbers: []
-                }
-            }
-        };
-    }
-
-    createConfetti() {
-        console.log('Creating confetti...');
-        
-        const colors = ['#4CAF50', '#8BC34A', '#CDDC39', '#FFEB3B', '#FFC107', '#FF9800'];
-        const confettiCount = 100;
-        
-        for (let i = 0; i < confettiCount; i++) {
-            const confetti = document.createElement('div');
-            confetti.className = 'confetti-piece';
-            confetti.style.setProperty('--color', colors[Math.floor(Math.random() * colors.length)]);
-            confetti.style.left = `${Math.random() * 100}%`;
-            confetti.style.width = `${Math.random() * 10 + 5}px`;
-            confetti.style.height = `${Math.random() * 15 + 10}px`;
-            confetti.style.opacity = Math.random() * 0.5 + 0.5;
-            
-            const animationDuration = Math.random() * 3 + 2;
-            const animationDelay = Math.random() * 5;
-            
-            confetti.style.animation = `confettiFall ${animationDuration}s linear ${animationDelay}s infinite`;
-            
-            this.confettiContainer.appendChild(confetti);
-        }
-    }
-
-    setupAudio() {
-        console.log('Setting up audio...');
-        
-        if (this.winnerAudio) {
-            this.winnerAudio.volume = 0.5;
-            
-            // Try to play audio with user interaction fallback
-            const playAudio = () => {
-                this.winnerAudio.play().catch(e => {
-                    console.log('Audio play failed, trying with promise:', e);
-                });
-            };
-            
-            // Try to play immediately
-            playAudio();
-            
-            // Also try on any user interaction
-            document.addEventListener('click', playAudio, { once: true });
-        }
-    }
-
-    displayWinnerCard(winnerData) {
-        console.log('Displaying winner card...');
-        
-        // Clear container
-        this.winnerContainer.innerHTML = '';
-        
-        // Create the winner card HTML
-        const html = `
-            <div class="winner-header">
-                <div class="winner-trophy">
-                    <i class="fas fa-trophy"></i>
-                </div>
-                <h1 class="winner-title">BINGO VICTORY!</h1>
-                <p class="winner-subtitle">Congratulations on your verified win!</p>
-            </div>
-            
-            <div class="player-info-section">
-                <div class="player-display">
-                    <div class="player-avatar-large">
-                        ${winnerData.playerName.charAt(0).toUpperCase()}
-                    </div>
-                    <div class="player-details">
-                        <h2>${winnerData.playerName}</h2>
-                        <p>Player ID: ${winnerData.playerId}</p>
-                        <p>Card Numbers: ${winnerData.cardNumbers.join(', ')}</p>
-                    </div>
-                </div>
-                
-                <div class="stats-section">
-                    <div class="stat-box">
-                        <div class="stat-value">${winnerData.totalLines}</div>
-                        <div class="stat-label">Verified Lines</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-value">${winnerData.gameTime}s</div>
-                        <div class="stat-label">Game Time</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-value">${winnerData.calledNumbers}</div>
-                        <div class="stat-label">Numbers Called</div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="bingo-card-display">
-                <h2 class="card-title">
-                    <i class="fas fa-dice-one"></i> 
-                    WINNING CARD #${winnerData.cardNumbers[0]}
-                </h2>
-                
-                <div class="bingo-grid-container" id="bingoGrid">
-                    <!-- Bingo grid will be generated by JavaScript -->
-                </div>
-                
-                ${winnerData.cardData.card1.winningLines.length > 0 ? `
-                    <div class="winning-pattern">
-                        <h3><i class="fas fa-medal"></i> Winning Pattern Verified</h3>
-                        <p>${winnerData.cardData.card1.winningLines.join(', ')}</p>
-                        <p class="verification-text">
-                            <i class="fas fa-check-circle"></i> All winning numbers were called and marked
-                        </p>
-                    </div>
-                ` : ''}
-            </div>
-            
-            <div class="countdown-message" id="countdownMessage">
-                <i class="fas fa-hourglass-half"></i> 
-                Auto-redirecting to card selection in <span id="countdownNumber">5</span> seconds...
-            </div>
-        `;
-        
-        // Insert HTML into container
-        this.winnerContainer.innerHTML = html;
-        
-        // Generate the bingo grid with proper highlighting
-        this.generateBingoGrid(winnerData.cardData.card1);
-        
-        // Setup event listeners
+        this.updateDisplays();
+        this.startSelectionTimer();
         this.setupEventListeners();
-        
-        console.log('Winner card displayed successfully');
     }
 
-    generateBingoGrid(cardData) {
-        const gridContainer = document.getElementById('bingoGrid');
-        if (!gridContainer) return;
+    setupUserInfo() {
+        this.playerName.textContent = this.gameState.playerName;
+        this.playerId.textContent = this.gameState.playerId;
+        this.playerAvatar.textContent = this.gameState.playerName.charAt(0).toUpperCase();
         
-        // Clear any existing content
-        gridContainer.innerHTML = '';
+        // Generate random avatar color
+        const colors = ['#00b4d8', '#0077b6', '#0096c7', '#005f8a', '#03045e'];
+        this.playerAvatar.style.background = colors[Math.floor(Math.random() * colors.length)];
+    }
+
+    generateTakenCards() {
+        // Only track real players who selected through the link
+        // Start with empty taken cards
+        this.takenCards = new Set();
+    }
+
+    createCardGrid() {
+        this.cardsGrid.innerHTML = '';
         
-        // Create column headers
-        ['B', 'I', 'N', 'G', 'O'].forEach(letter => {
-            const header = document.createElement('div');
-            header.className = 'bingo-header';
-            header.textContent = letter;
-            gridContainer.appendChild(header);
+        for (let i = 1; i <= this.totalCards; i++) {
+            const cardElement = document.createElement('div');
+            cardElement.className = 'card-number';
+            cardElement.textContent = i;
+            cardElement.dataset.cardNumber = i;
+            
+            if (this.takenCards.has(i)) {
+                cardElement.classList.add('taken');
+                cardElement.title = 'Already taken by another player';
+            } else {
+                cardElement.addEventListener('click', () => this.selectCard(i));
+            }
+            
+            this.cardsGrid.appendChild(cardElement);
+        }
+    }
+
+    selectCard(cardNumber) {
+        // Check if card is already selected - if so, deselect it
+        const index = this.gameState.selectedCards.indexOf(cardNumber);
+        
+        if (index > -1) {
+            // Card is already selected - deselect it
+            this.gameState.selectedCards.splice(index, 1);
+            BingoUtils.showNotification(`Card #${cardNumber} deselected`, 'info');
+        } else {
+            // Check if max cards reached
+            if (this.gameState.selectedCards.length >= this.maxCards) {
+                BingoUtils.showNotification(`You can only select ${this.maxCards} cards maximum`, 'warning');
+                return;
+            }
+            
+            // Add card to selection
+            this.gameState.selectedCards.push(cardNumber);
+            BingoUtils.showNotification(`Card #${cardNumber} selected!`, 'success');
+        }
+        
+        // Update displays
+        this.updateCardElements();
+        this.updateSelectedCardsDisplay();
+        this.updateDisplays();
+    }
+
+    updateCardElements() {
+        document.querySelectorAll('.card-number').forEach(card => {
+            const cardNum = parseInt(card.dataset.cardNumber);
+            
+            // Remove selected class from all
+            card.classList.remove('selected');
+            
+            // Add selected class to chosen cards
+            if (this.gameState.selectedCards.includes(cardNum)) {
+                card.classList.add('selected');
+            }
         });
+    }
+
+    updateSelectedCardsDisplay() {
+        // Update card numbers
+        this.card1Number.textContent = this.gameState.selectedCards[0] || '--';
+        this.card2Number.textContent = this.gameState.selectedCards[1] || '--';
         
-        // Create the 5x5 grid (25 cells total)
+        // Update previews
+        this.updateCardPreview(1, this.gameState.selectedCards[0]);
+        this.updateCardPreview(2, this.gameState.selectedCards[1]);
+        
+        // Update progress
+        const progress = (this.gameState.selectedCards.length / this.maxCards) * 100;
+        this.selectionProgress.style.width = `${progress}%`;
+    }
+
+    updateCardPreview(cardIndex, cardNumber) {
+        const previewElement = cardIndex === 1 ? this.card1Preview : this.card2Preview;
+        
+        if (!cardNumber) {
+            previewElement.innerHTML = '';
+            for (let i = 0; i < 25; i++) {
+                const cell = document.createElement('div');
+                cell.className = 'preview-cell';
+                cell.textContent = '';
+                previewElement.appendChild(cell);
+            }
+            return;
+        }
+        
+        // Generate bingo card preview based on card index
+        previewElement.innerHTML = '';
+        let cardNumbers;
+        
+        if (cardIndex === 1) {
+            // First card: deterministic
+            cardNumbers = BingoUtils.generateDeterministicBingoCardNumbers(cardNumber);
+        } else {
+            // Second card: randomized
+            cardNumbers = BingoUtils.generateRandomBingoCardNumbers(cardNumber);
+        }
+        
         for (let i = 0; i < 25; i++) {
+            const cell = document.createElement('div');
+            cell.className = 'preview-cell';
+            
             const row = Math.floor(i / 5);
             const col = i % 5;
             
-            const cell = document.createElement('div');
-            cell.className = 'bingo-cell';
-            cell.setAttribute('data-col', col);
-            cell.setAttribute('data-index', i);
-            
-            // Get the number from cardData.numbers (column-major order)
-            const numberIndex = col * 5 + row;
-            let number = cardData.numbers[numberIndex];
-            
-            // Check if this is the free space
-            const isFreeSpace = row === 2 && col === 2;
-            
-            if (isFreeSpace) {
+            if (row === 2 && col === 2) { // Center is FREE
                 cell.textContent = 'FREE';
-                cell.className += ' free marked';
-                
-                // Check if free space is part of winning pattern
-                if (cardData.winningCells && cardData.winningCells.includes(i)) {
-                    cell.className += ' winning';
-                }
+                cell.classList.add('free');
             } else {
-                cell.textContent = number;
-                
-                // Check if this number is marked
-                const isMarked = cardData.markedNumbers && 
-                                cardData.markedNumbers.includes(number);
-                
-                // Check if this number was called
-                const isCalled = cardData.calledNumbers &&
-                               cardData.calledNumbers.includes(number);
-                
-                if (isMarked && isCalled) {
-                    cell.className += ' marked';
-                }
-                
-                // Check if this cell is part of winning pattern
-                if (cardData.winningCells && cardData.winningCells.includes(i)) {
-                    cell.className += ' winning';
-                    
-                    // Add verification indicator
-                    if (isMarked && isCalled) {
-                        cell.title = `Verified: ${number} was called and marked`;
-                    } else {
-                        cell.title = `Unverified: ${number} not properly marked/called`;
-                        cell.style.opacity = '0.7';
-                    }
-                }
+                const numberIndex = col * 5 + row;
+                cell.textContent = cardNumbers[numberIndex] || '';
             }
             
-            gridContainer.appendChild(cell);
-        }
-        
-        // Add pattern description if available
-        if (cardData.winningLines && cardData.winningLines.length > 0) {
-            const patternInfo = document.createElement('div');
-            patternInfo.className = 'pattern-info';
-            patternInfo.innerHTML = `
-                <div class="pattern-details">
-                    <h4><i class="fas fa-star"></i> Winning Pattern Details:</h4>
-                    <ul>
-                        ${cardData.winningLines.map(line => `<li>${line}</li>`).join('')}
-                    </ul>
-                    <p class="verification-success">
-                        <i class="fas fa-shield-alt"></i> Pattern verified: All cells were properly marked and called
-                    </p>
-                </div>
-            `;
-            
-            // Find the winning pattern container and append
-            const patternContainer = this.winnerContainer.querySelector('.winning-pattern');
-            if (patternContainer) {
-                patternContainer.appendChild(patternInfo);
-            }
+            previewElement.appendChild(cell);
         }
     }
 
-    setupEventListeners() {
-        // Only auto-redirect functionality remains
+    updateDisplays() {
+        this.cardsSelected.textContent = this.gameState.selectedCards.length;
+        this.totalCardsTaken.textContent = this.takenCards.size;
+        this.activePlayers.textContent = this.gameState.activePlayers;
     }
 
-    startAutoRedirect() {
-        let countdown = 5;
-        const countdownElement = document.getElementById('countdownNumber');
-        const countdownMessage = document.getElementById('countdownMessage');
+    startSelectionTimer() {
+        if (this.timerInterval) {
+            clearInterval(this.timerInterval);
+        }
         
-        if (!countdownElement || !countdownMessage) return;
+        this.selectionTime = 60;
+        this.updateTimerDisplay();
         
-        const countdownInterval = setInterval(() => {
-            countdown--;
-            countdownElement.textContent = countdown;
+        this.timerInterval = setInterval(() => {
+            this.selectionTime--;
+            this.updateTimerDisplay();
             
-            if (countdown <= 0) {
-                clearInterval(countdownInterval);
-                countdownMessage.innerHTML = '<i class="fas fa-rocket"></i> Redirecting now...';
-                this.redirectToCardSelection();
+            if (this.selectionTime <= 0) {
+                clearInterval(this.timerInterval);
+                this.handleTimerExpired();
+            }
+            
+            // Add urgency effect when time is low
+            if (this.selectionTime <= 10) {
+                this.selectionTimer.classList.add('animate-shake');
+                
+                // Show urgent notification at 10, 5, 3, 2, 1 seconds
+                if ([10, 5, 3, 2, 1].includes(this.selectionTime)) {
+                    BingoUtils.showNotification(`${this.selectionTime} second${this.selectionTime === 1 ? '' : 's'} left!`, 'warning');
+                }
             }
         }, 1000);
     }
 
-    redirectToCardSelection() {
-        console.log('Redirecting to card selection page...');
+    handleTimerExpired() {
+        // Stop the shake animation
+        this.selectionTimer.classList.remove('animate-shake');
         
-        // Clear session storage
-        sessionStorage.clear();
+        // Check if any cards are selected
+        if (this.gameState.selectedCards.length === 0) {
+            // No cards selected - auto select random cards
+            BingoUtils.showNotification('Time expired! Selecting random cards for you...', 'info');
+            this.randomSelectCards();
+            
+            // Wait 2 seconds then proceed
+            setTimeout(() => {
+                this.confirmSelection();
+            }, 2000);
+        } else {
+            // Cards are selected - proceed to game
+            BingoUtils.showNotification('Time expired! Starting game with your selected cards...', 'info');
+            this.confirmSelection();
+        }
+    }
+
+    updateTimerDisplay() {
+        const minutes = Math.floor(this.selectionTime / 60);
+        const seconds = this.selectionTime % 60;
+        this.selectionTimer.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
         
-        // Redirect to choose-cards.html
-        window.location.href = 'choose-cards.html';
+        // Update timer color based on remaining time
+        if (this.selectionTime <= 10) {
+            this.selectionTimer.style.color = '#ff4b4b';
+        } else if (this.selectionTime <= 30) {
+            this.selectionTimer.style.color = '#ff9e00';
+        } else {
+            this.selectionTimer.style.color = '#00b4d8';
+        }
+    }
+
+    randomSelectCards() {
+        // Clear any existing selection
+        this.gameState.selectedCards = [];
+        
+        const availableCards = [];
+        for (let i = 1; i <= this.totalCards; i++) {
+            if (!this.takenCards.has(i)) {
+                availableCards.push(i);
+            }
+        }
+        
+        if (availableCards.length === 0) {
+            BingoUtils.showNotification('No available cards left!', 'error');
+            return;
+        }
+        
+        // Shuffle available cards
+        for (let i = availableCards.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [availableCards[i], availableCards[j]] = [availableCards[j], availableCards[i]];
+        }
+        
+        // Select required number of cards
+        const cardsToSelect = Math.min(this.maxCards, availableCards.length);
+        for (let i = 0; i < cardsToSelect; i++) {
+            this.gameState.selectedCards.push(availableCards[i]);
+        }
+        
+        this.updateCardElements();
+        this.updateSelectedCardsDisplay();
+        this.updateDisplays();
+        
+        // Show notification for selected cards
+        const selectedCardsText = this.gameState.selectedCards.join(', ');
+        BingoUtils.showNotification(`Randomly selected cards: ${selectedCardsText}`, 'success');
+    }
+
+    clearSelection() {
+        this.gameState.selectedCards = [];
+        this.updateCardElements();
+        this.updateSelectedCardsDisplay();
+        this.updateDisplays();
+        BingoUtils.showNotification('Selection cleared!', 'info');
+    }
+
+    confirmSelection() {
+        if (this.gameState.selectedCards.length === 0) {
+            // If no cards selected even after timer, select random cards
+            this.randomSelectCards();
+            setTimeout(() => this.confirmSelection(), 1000);
+            return;
+        }
+        
+        // Show loading overlay
+        this.loadingOverlay.classList.add('active');
+        this.loadingText.textContent = 'Preparing Game...';
+        
+        // Simulate API call to save selection
+        setTimeout(() => {
+            this.saveSelectionToBackend();
+            this.proceedToGame();
+        }, 1500);
+    }
+
+    saveSelectionToBackend() {
+        // Add selected cards to taken cards
+        this.gameState.selectedCards.forEach(card => {
+            this.takenCards.add(card);
+        });
+        
+        // Save game state
+        this.gameState.saveToSession();
+        
+        // Send data to backend (simulated)
+        const selectionData = {
+            action: 'card_selection',
+            playerId: this.gameState.playerId,
+            playerName: this.gameState.playerName,
+            selectedCards: this.gameState.selectedCards,
+            timestamp: Date.now()
+        };
+        
+        console.log('Sending selection data:', selectionData);
+        
+        if (this.telegramManager.isInitialized) {
+            this.telegramManager.sendData(selectionData);
+        }
+    }
+
+    proceedToGame() {
+        this.loadingText.textContent = 'Starting Game...';
+        
+        setTimeout(() => {
+            window.location.href = 'game.html';
+        }, 1500);
+    }
+
+    setupEventListeners() {
+        this.randomSelectBtn.addEventListener('click', () => this.randomSelectCards());
+        this.clearSelectionBtn.addEventListener('click', () => this.clearSelection());
+        
+        // Handle page visibility change
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                console.log('Card selection paused');
+            }
+        });
     }
 }
 
-// Start the winner page when DOM is loaded
+// Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('DOM loaded, starting winner page...');
-    
-    // Hide loading message after a short delay
-    setTimeout(() => {
-        const loadingMessage = document.getElementById('loadingMessage');
-        if (loadingMessage) {
-            loadingMessage.style.display = 'none';
-        }
-        
-        const winnerContainer = document.getElementById('winnerContainer');
-        if (winnerContainer) {
-            winnerContainer.style.display = 'block';
-        }
-    }, 500);
-    
-    // Initialize winner page
-    new WinnerPage();
+    new ChooseCardsPage();
 });
-
-// Fallback in case DOMContentLoaded already fired
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-        new WinnerPage();
-    });
-} else {
-    // DOM already loaded
-    new WinnerPage();
-}
