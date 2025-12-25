@@ -315,3 +315,147 @@ body.winner-page {
         font-size: 1.2rem;
     }
 }
+/* ==================== */
+/* WINNER PAGE UPDATES  */
+/* ==================== */
+
+.winning-pattern-badge {
+    background: linear-gradient(135deg, #4CAF50, #2E7D32);
+    color: white;
+    padding: 12px 25px;
+    border-radius: 30px;
+    font-size: 1.2rem;
+    font-weight: bold;
+    text-align: center;
+    margin: 20px auto;
+    display: inline-block;
+    border: 3px solid #FFD700;
+    box-shadow: 0 5px 20px rgba(76, 175, 80, 0.5);
+    animation: pulse 2s infinite;
+}
+
+.winning-pattern-details {
+    background: rgba(76, 175, 80, 0.1);
+    border-radius: 15px;
+    padding: 20px;
+    margin-top: 25px;
+    border: 2px solid #4CAF50;
+}
+
+.winning-pattern-details h3 {
+    color: #4CAF50;
+    font-size: 1.5rem;
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.pattern-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.pattern-item {
+    display: flex;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+    padding: 12px 15px;
+    border-left: 4px solid #4CAF50;
+}
+
+.pattern-number {
+    background: #4CAF50;
+    color: white;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    margin-right: 15px;
+}
+
+.pattern-name {
+    flex: 1;
+    color: #90e0ef;
+    font-size: 1.1rem;
+}
+
+.pattern-verified {
+    color: #4CAF50;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+/* Enhanced winning cell highlighting */
+.bingo-cell.winning-cell {
+    background: linear-gradient(135deg, #FFD700, #FFA500) !important;
+    color: #000 !important;
+    border: 3px solid #FF4500 !important;
+    position: relative;
+    z-index: 2;
+    animation: winningCellPulse 1.5s infinite alternate;
+}
+
+.bingo-cell.winning-cell:after {
+    content: '🏆';
+    position: absolute;
+    top: -10px;
+    right: -10px;
+    font-size: 1.2rem;
+    z-index: 3;
+}
+
+@keyframes winningCellPulse {
+    0% {
+        box-shadow: 0 0 15px rgba(255, 215, 0, 0.7);
+        transform: scale(1);
+    }
+    100% {
+        box-shadow: 0 0 25px rgba(255, 215, 0, 1);
+        transform: scale(1.05);
+    }
+}
+
+/* Countdown pulse */
+#countdownNumber.pulse {
+    animation: countdownPulse 0.5s infinite alternate;
+}
+
+@keyframes countdownPulse {
+    from {
+        transform: scale(1);
+    }
+    to {
+        transform: scale(1.2);
+    }
+}
+
+/* Improved trophy animation */
+.winner-trophy {
+    font-size: 5rem;
+    color: #FFD700;
+    margin-bottom: 20px;
+    animation: trophySpin 3s ease-in-out infinite;
+    text-shadow: 
+        0 0 20px rgba(255, 215, 0, 0.8),
+        0 0 40px rgba(255, 215, 0, 0.6);
+}
+
+@keyframes trophySpin {
+    0% {
+        transform: rotateY(0deg);
+    }
+    50% {
+        transform: rotateY(180deg);
+    }
+    100% {
+        transform: rotateY(360deg);
+    }
+}

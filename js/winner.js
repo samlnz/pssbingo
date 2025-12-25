@@ -1,4 +1,7 @@
-// Winner Page - Simple and Guaranteed to Work
+// ====================================================
+// WINNER.JS - UPDATED with Perfect Pattern Highlighting
+// ====================================================
+
 class WinnerPage {
     constructor() {
         console.log('Winner page initializing...');
@@ -17,7 +20,14 @@ class WinnerPage {
         
         // Load winner data
         const winnerData = this.loadWinnerData();
-        console.log('Winner data:', winnerData);
+        console.log('VERIFIED Winner data:', winnerData);
+        
+        // Verify the win data is valid
+        if (!this.verifyWinData(winnerData)) {
+            console.error('Invalid win data, redirecting...');
+            this.redirectToCardSelection();
+            return;
+        }
         
         // Create confetti
         this.createConfetti();
@@ -43,46 +53,34 @@ class WinnerPage {
                 console.log('Data loaded successfully');
                 return data;
             } else {
-                console.warn('No winner data found in sessionStorage, using sample data');
-                return this.getSampleData();
+                console.warn('No winner data found, redirecting...');
+                this.redirectToCardSelection();
+                return null;
             }
         } catch (error) {
             console.error('Error loading winner data:', error);
-            return this.getSampleData();
+            this.redirectToCardSelection();
+            return null;
         }
     }
 
-    getSampleData() {
-        return {
-            playerName: 'Telegram User',
-            playerId: '1234',
-            cardNumbers: [123, 456],
-            winningLines: { card1: 2, card2: 1 },
-            totalLines: 3,
-            gameTime: 85,
-            calledNumbers: 42,
-            cardData: {
-                card1: {
-                    numbers: [
-                        1, 16, 31, 46, 61,
-                        2, 17, 32, 47, 62,
-                        3, 18, 'FREE', 48, 63,
-                        4, 19, 34, 49, 64,
-                        5, 20, 35, 50, 65
-                    ],
-                    markedNumbers: [1, 16, 31, 46, 61, 2, 17, 32, 47, 3, 18, 4, 19, 34, 5],
-                    winningCells: [0, 1, 2, 3, 4, 6, 12, 18, 24],
-                    winningLines: ['Row 1', 'Diagonal (Top-Left to Bottom-Right)']
-                }
+    verifyWinData(winnerData) {
+        if (!winnerData) return false;
+        if (!winnerData.cardData || !winnerData.cardData.card1) return false;
+        if (!winnerData.cardData.card1.winningCells || winnerData.cardData.card1.winningCells.length === 0) {
+            // Check card2 if card1 has no winning cells
+            if (!winnerData.cardData.card2 || !winnerData.cardData.card2.winningCells || winnerData.cardData.card2.winningCells.length === 0) {
+                return false;
             }
-        };
+        }
+        return true;
     }
 
     createConfetti() {
         console.log('Creating confetti...');
         
         const colors = ['#4CAF50', '#8BC34A', '#CDDC39', '#FFEB3B', '#FFC107', '#FF9800'];
-        const confettiCount = 100;
+        const confettiCount = 150;
         
         for (let i = 0; i < confettiCount; i++) {
             const confetti = document.createElement('div');
@@ -106,16 +104,16 @@ class WinnerPage {
         console.log('Setting up audio...');
         
         if (this.winnerAudio) {
-            this.winnerAudio.volume = 0.5;
+            this.winnerAudio.volume = 0.6;
             
-            // Try to play audio with user interaction fallback
+            // Try to play audio
             const playAudio = () => {
                 this.winnerAudio.play().catch(e => {
-                    console.log('Audio play failed, trying with promise:', e);
+                    console.log('Audio play failed:', e);
                 });
             };
             
-            // Try to play immediately
+            // Try immediately
             playAudio();
             
             // Also try on any user interaction
@@ -129,6 +127,11 @@ class WinnerPage {
         // Clear container
         this.winnerContainer.innerHTML = '';
         
+        // Find which card has the winning pattern
+        const winningCardIndex = winnerData.cardData.card1.winningCells.length > 0 ? 1 : 2;
+        const winningCard = winningCardIndex === 1 ? winnerData.cardData.card1 : winnerData.cardData.card2;
+        const cardNumber = winnerData.cardNumbers[winningCardIndex - 1];
+        
         // Create the winner card HTML
         const html = `
             <div class="winner-header">
@@ -136,7 +139,7 @@ class WinnerPage {
                     <i class="fas fa-trophy"></i>
                 </div>
                 <h1 class="winner-title">BINGO VICTORY!</h1>
-                <p class="winner-subtitle">Congratulations on your amazing win!</p>
+                <p class="winner-subtitle">Verified Win - No False Positives</p>
             </div>
             
             <div class="player-info-section">
@@ -153,7 +156,7 @@ class WinnerPage {
                 <div class="stats-section">
                     <div class="stat-box">
                         <div class="stat-value">${winnerData.totalLines}</div>
-                        <div class="stat-label">Winning Lines</div>
+                        <div class="stat-label">Verified Lines</div>
                     </div>
                     <div class="stat-box">
                         <div class="stat-value">${winnerData.gameTime}s</div>
@@ -168,48 +171,54 @@ class WinnerPage {
             
             <div class="bingo-card-display">
                 <h2 class="card-title">
-                    <i class="fas fa-dice-one"></i> 
-                    WINNING CARD #${winnerData.cardNumbers[0]}
+                    <i class="fas fa-dice-${winningCardIndex === 1 ? 'one' : 'two'}"></i> 
+                    WINNING CARD #${cardNumber}
                 </h2>
+                
+                <div class="winning-pattern-badge">
+                    <i class="fas fa-medal"></i>
+                    ${winningCard.winningLines.length} VERIFIED WINNING LINE${winningCard.winningLines.length > 1 ? 'S' : ''}
+                </div>
                 
                 <div class="bingo-grid-container" id="bingoGrid">
                     <!-- Bingo grid will be generated by JavaScript -->
                 </div>
                 
-                ${winnerData.cardData.card1.winningLines.length > 0 ? `
-                    <div class="winning-pattern">
-                        <h3><i class="fas fa-medal"></i> Winning Pattern</h3>
-                        <p>${winnerData.cardData.card1.winningLines.join(', ')}</p>
+                <div class="winning-pattern-details">
+                    <h3><i class="fas fa-star"></i> Winning Pattern Details</h3>
+                    <div class="pattern-list" id="patternList">
+                        <!-- Pattern details will be inserted here -->
                     </div>
-                ` : ''}
+                </div>
             </div>
-            
-            <!-- REMOVED: Action buttons section -->
             
             <div class="countdown-message" id="countdownMessage">
                 <i class="fas fa-hourglass-half"></i> 
-                Auto-redirecting to card selection in <span id="countdownNumber">5</span> seconds...
+                Returning to card selection in <span id="countdownNumber">10</span> seconds...
             </div>
         `;
         
         // Insert HTML into container
         this.winnerContainer.innerHTML = html;
         
-        // Generate the bingo grid
-        this.generateBingoGrid(winnerData.cardData.card1);
+        // Generate the bingo grid with perfect highlighting
+        this.generateBingoGrid(winningCard, cardNumber);
         
-        // Setup event listeners (only for auto-redirect now)
-        this.setupEventListeners();
+        // Generate pattern list
+        this.generatePatternList(winningCard);
         
         console.log('Winner card displayed successfully');
     }
 
-    generateBingoGrid(cardData) {
+    generateBingoGrid(cardData, cardNumber) {
         const gridContainer = document.getElementById('bingoGrid');
         if (!gridContainer) return;
         
         // Clear any existing content
         gridContainer.innerHTML = '';
+        
+        // Get the actual card numbers for this card number
+        const actualCardNumbers = BingoUtils.generateBingoCardNumbers(cardNumber);
         
         // Create column headers
         ['B', 'I', 'N', 'G', 'O'].forEach(letter => {
@@ -226,14 +235,14 @@ class WinnerPage {
             
             const cell = document.createElement('div');
             cell.className = 'bingo-cell';
-            cell.setAttribute('data-col', col);
+            cell.setAttribute('data-index', i);
             
-            // Get the number from cardData.numbers (column-major order)
+            // Get the number from actualCardNumbers (column-major order)
             const numberIndex = col * 5 + row;
-            let number = cardData.numbers[numberIndex];
+            const number = actualCardNumbers[numberIndex];
             
             // Check if this is the free space
-            const isFreeSpace = row === 2 && col === 2;
+            const isFreeSpace = number === 0;
             
             if (isFreeSpace) {
                 cell.textContent = 'FREE';
@@ -251,7 +260,8 @@ class WinnerPage {
                 
                 // Check if this cell is part of winning pattern
                 if (cardData.winningCells && cardData.winningCells.includes(i)) {
-                    cell.className += ' winning';
+                    cell.className += ' winning-cell';
+                    cell.title = 'Part of winning pattern';
                 }
             }
             
@@ -259,13 +269,28 @@ class WinnerPage {
         }
     }
 
-    setupEventListeners() {
-        // REMOVED: Play Again and Share Victory button event listeners
-        // Only auto-redirect functionality remains
+    generatePatternList(cardData) {
+        const patternList = document.getElementById('patternList');
+        if (!patternList || !cardData.winningLines) return;
+        
+        patternList.innerHTML = '';
+        
+        cardData.winningLines.forEach((pattern, index) => {
+            const patternItem = document.createElement('div');
+            patternItem.className = 'pattern-item';
+            patternItem.innerHTML = `
+                <div class="pattern-number">${index + 1}</div>
+                <div class="pattern-name">${pattern}</div>
+                <div class="pattern-verified">
+                    <i class="fas fa-check-circle"></i> Verified
+                </div>
+            `;
+            patternList.appendChild(patternItem);
+        });
     }
 
     startAutoRedirect() {
-        let countdown = 5;
+        let countdown = 10;
         const countdownElement = document.getElementById('countdownNumber');
         const countdownMessage = document.getElementById('countdownMessage');
         
@@ -274,6 +299,11 @@ class WinnerPage {
         const countdownInterval = setInterval(() => {
             countdown--;
             countdownElement.textContent = countdown;
+            
+            if (countdown <= 3) {
+                countdownElement.style.color = '#ff4b4b';
+                countdownElement.classList.add('pulse');
+            }
             
             if (countdown <= 0) {
                 clearInterval(countdownInterval);
@@ -287,13 +317,12 @@ class WinnerPage {
         console.log('Redirecting to card selection page...');
         
         // Clear session storage
-        sessionStorage.clear();
+        sessionStorage.removeItem('bingoWinner');
+        sessionStorage.removeItem('bingoGameState');
         
         // Redirect to choose-cards.html
         window.location.href = 'choose-cards.html';
     }
-
-    // REMOVED: shareVictory() method
 }
 
 // Start the winner page when DOM is loaded
