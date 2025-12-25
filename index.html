@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Telegram Bingo Casino</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/animations.css">
+    <link rel="stylesheet" href="css/index.css">
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body class="index-page">
+    <div class="app-container">
+        <div class="header">
+            <div class="logo">
+                <i class="fas fa-dice-d20 logo-icon"></i>
+                <h1>TELEGRAM BINGO CASINO</h1>
+            </div>
+            <p class="subtitle">Multiplayer Bingo Game with up to 500 Players</p>
+        </div>
+
+        <div class="player-stats">
+            <div class="stat-card">
+                <div class="stat-value" id="currentPlayers">0</div>
+                <div class="stat-label">Current Players</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="cardsTaken">0</div>
+                <div class="stat-label">Cards Taken</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="timeLeft">60</div>
+                <div class="stat-label">Seconds Left</div>
+            </div>
+        </div>
+
+        <div class="game-info">
+            <div class="info-card">
+                <i class="fas fa-layer-group"></i>
+                <h3>Choose Your Cards</h3>
+                <p>Select up to 2 bingo cards from 500 available. Each card is uniquely numbered.</p>
+            </div>
+            <div class="info-card">
+                <i class="fas fa-bullhorn"></i>
+                <h3>Live Number Calling</h3>
+                <p>Watch as numbers are called every 5 seconds with professional animations.</p>
+            </div>
+            <div class="info-card">
+                <i class="fas fa-trophy"></i>
+                <h3>Win Prizes</h3>
+                <p>Be the first to complete a line (horizontal, vertical, or diagonal) and win!</p>
+            </div>
+        </div>
+
+          <div class="start-section">
+            <div class="stake-display">
+                <div class="stake-label">Entry Fee</div>
+                <div class="stake-amount">10 BIRR</div>
+            </div>
+            
+            <button class="btn-start" id="startGameBtn">
+                <i class="fas fa-play"></i>
+                PLAY NOW
+            </button>
+        </div>
+
+        <div class="rules">
+            <h2><i class="fas fa-info-circle"></i> How to Play</h2>
+            <ul>
+                <li>Each player can choose up to 2 bingo cards</li>
+                <li>You have exactly 1 minute to select your cards</li>
+                <li>Once time is up, the game begins automatically</li>
+                <li>Numbers will be called every 5 seconds from 1-75</li>
+                <li>Mark numbers on your card as they're called</li>
+                <li>Complete any line (horizontal, vertical, or diagonal) to win</li>
+                <li>Click BINGO when you complete a line or use auto-detection</li>
+                <li>Winner will be announced with their Telegram username</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/common.js"></script>
+    <script src="js/telegram-init.js"></script>
+    <script src="js/index.js"></script>
+</body>
+</html>
