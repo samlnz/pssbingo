@@ -1,4 +1,6 @@
-// Common utility functions for the Bingo game
+// ====================================================
+// COMMON.JS - Updated with Card Generator
+// ====================================================
 
 class GameState {
     constructor() {
@@ -174,78 +176,34 @@ class BingoUtils {
         }
     }
 
-    // NEW: Deterministic card number generation for first card
-    static generateDeterministicBingoCardNumbers(cardNumber) {
-        const seed = cardNumber;
-        const numbers = [];
-        
-        const columnRanges = [
-            {min: 1, max: 15},
-            {min: 16, max: 30},
-            {min: 31, max: 45},
-            {min: 46, max: 60},
-            {min: 61, max: 75}
-        ];
-        
-        // For deterministic first card
-        columnRanges.forEach((range, colIndex) => {
-            const colNumbers = [];
-            for (let row = 0; row < 5; row++) {
-                // Use a deterministic algorithm based on card number
-                const hash = (seed * 1000) + (colIndex * 100) + (row * 10) + 1;
-                const num = (hash % (range.max - range.min + 1)) + range.min;
-                
-                // Ensure uniqueness within column
-                let uniqueNum = num;
-                let attempts = 0;
-                while (colNumbers.includes(uniqueNum) && attempts < 100) {
-                    uniqueNum = ((uniqueNum + 7) % (range.max - range.min + 1)) + range.min;
-                    attempts++;
-                }
-                colNumbers.push(uniqueNum);
-            }
-            colNumbers.sort((a, b) => a - b);
-            numbers.push(...colNumbers);
-        });
-        
-        return numbers;
+    // ===== NEW: Deterministic Card Generation =====
+    static generateBingoCardNumbers(cardNumber) {
+        const card = cardGenerator.generateCard(cardNumber);
+        return card.numbers;
     }
 
-    // NEW: Randomized card number generation for second card
-    static generateRandomBingoCardNumbers(cardNumber) {
-        const numbers = [];
-        
-        const columnRanges = [
-            {min: 1, max: 15},
-            {min: 16, max: 30},
-            {min: 31, max: 45},
-            {min: 46, max: 60},
-            {min: 61, max: 75}
-        ];
-        
-        // For randomized second card
-        columnRanges.forEach((range) => {
-            const colNumbers = new Set();
-            
-            // Generate 5 unique random numbers for this column
-            while (colNumbers.size < 5) {
-                const num = this.generateRandomNumber(range.min, range.max);
-                colNumbers.add(num);
-            }
-            
-            // Convert to array and sort
-            const sortedNumbers = Array.from(colNumbers).sort((a, b) => a - b);
-            numbers.push(...sortedNumbers);
-        });
-        
-        return numbers;
+    static getCardGrid(cardNumber) {
+        const card = cardGenerator.generateCard(cardNumber);
+        return cardGenerator.numbersToGrid(card.numbers);
     }
+
+    static getCardPreviewHTML(cardNumber) {
+        const grid = this.getCardGrid(cardNumber);
+        let html = '';
+        
+        for (let row = 0; row < 5; row++) {
+            for (let col = 0; col < 5; col++) {
+                const number = grid[row][col];
+                const isFree = number === 'FREE';
+                const cssClass = isFree ? 'preview-cell free' : 'preview-cell';
+                html += `<div class="${cssClass}">${number}</div>`;
+            }
+        }
+        
+        return html;
+    }
+    // ===== END NEW =====
 }
 
 // Initialize global game state
 const gameState = new GameState();
-
-// Export for use in other files
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { GameState, BingoUtils, gameState };
-}

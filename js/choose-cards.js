@@ -1,4 +1,6 @@
-// Choose cards page functionality
+// ====================================================
+// CHOOSE-CARDS.JS - Updated with Deterministic Cards
+// ====================================================
 
 class ChooseCardsPage {
     constructor() {
@@ -137,6 +139,7 @@ class ChooseCardsPage {
         this.selectionProgress.style.width = `${progress}%`;
     }
 
+    // UPDATED: Shows deterministic card preview
     updateCardPreview(cardIndex, cardNumber) {
         const previewElement = cardIndex === 1 ? this.card1Preview : this.card2Preview;
         
@@ -151,17 +154,9 @@ class ChooseCardsPage {
             return;
         }
         
-        // Generate bingo card preview based on card index
+        // Get deterministic card numbers for this card number
+        const cardNumbers = BingoUtils.generateBingoCardNumbers(cardNumber);
         previewElement.innerHTML = '';
-        let cardNumbers;
-        
-        if (cardIndex === 1) {
-            // First card: deterministic
-            cardNumbers = BingoUtils.generateDeterministicBingoCardNumbers(cardNumber);
-        } else {
-            // Second card: randomized
-            cardNumbers = BingoUtils.generateRandomBingoCardNumbers(cardNumber);
-        }
         
         for (let i = 0; i < 25; i++) {
             const cell = document.createElement('div');

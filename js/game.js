@@ -1,4 +1,6 @@
-// Game page functionality
+// ====================================================
+// GAME.JS - Updated with Deterministic Cards
+// ====================================================
 
 class GamePage {
     constructor() {
@@ -74,21 +76,16 @@ class GamePage {
         this.playerAvatar.textContent = this.gameState.playerName.charAt(0).toUpperCase();
     }
 
+    // UPDATED: Uses deterministic cards
     generateBingoCards() {
         this.playerCardsContainer.innerHTML = '';
         
         // Generate cards based on selection
         this.gameState.selectedCards.forEach((cardNumber, index) => {
             const cardId = `card${index + 1}`;
-            let bingoNumbers;
             
-            // First card: deterministic, Second card: randomized
-            if (cardId === 'card1') {
-                bingoNumbers = BingoUtils.generateDeterministicBingoCardNumbers(cardNumber);
-            } else {
-                bingoNumbers = BingoUtils.generateRandomBingoCardNumbers(cardNumber);
-            }
-            
+            // Get deterministic card numbers for this card number
+            const bingoNumbers = BingoUtils.generateBingoCardNumbers(cardNumber);
             this.bingoNumbers[cardId] = bingoNumbers;
             
             const cardElement = this.createBingoCard(cardNumber, cardId, bingoNumbers);
@@ -96,6 +93,7 @@ class GamePage {
         });
     }
 
+    // UPDATED: Shows "Fixed Pattern" label
     createBingoCard(cardNumber, cardId, bingoNumbers) {
         const cardElement = document.createElement('div');
         cardElement.className = 'bingo-card';
@@ -106,7 +104,7 @@ class GamePage {
                 <h3 class="card-title">
                     <i class="fas fa-dice-${cardId === 'card1' ? 'one' : 'two'}"></i>
                     CARD #${cardNumber}
-                    <span class="card-type">${cardId === 'card1' ? '(Fixed)' : '(Random)'}</span>
+                    <span class="card-type">(Fixed Pattern)</span>
                 </h3>
                 <div class="card-number">#${cardNumber}</div>
             </div>
@@ -121,7 +119,7 @@ class GamePage {
                     const col = i % 5;
                     const numberIndex = col * 5 + row;
                     const number = bingoNumbers[numberIndex];
-                    const isFreeSpace = row === 2 && col === 2;
+                    const isFreeSpace = number === 0;
                     
                     return `
                         <div class="grid-cell ${isFreeSpace ? 'free marked' : ''}" 
@@ -773,11 +771,11 @@ class GamePage {
         
         this.sendWinData(winnerData);
         
-        // Redirect immediately to winner page - FIXED
+        // Redirect immediately to winner page
         console.log('Redirecting to winner page...');
         setTimeout(() => {
             window.location.href = 'winner.html';
-        }, 500); // Short delay to ensure data is saved
+        }, 500);
     }
 
     sendWinData(winnerData) {
