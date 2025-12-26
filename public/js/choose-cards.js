@@ -1,10 +1,27 @@
-// CHOOSE-CARDS.JS - Fully synchronized with server
+// Choose Cards Page - Fixed and Simplified
 class ChooseCardsPage {
     constructor() {
         this.gameState = gameState;
         this.server = serverClient;
         
-        // DOM elements
+        this.takenCards = new Set();
+        this.selectedCards = [];
+        this.totalCards = 500;
+        this.maxCards = 2;
+        
+        this.init();
+    }
+    
+    init() {
+        this.setupDOM();
+        this.setupServerListeners();
+        this.setupEventListeners();
+        
+        console.log('Choose Cards Page initialized');
+    }
+    
+    setupDOM() {
+        // Get DOM elements
         this.cardsGrid = document.getElementById('cardsGrid');
         this.card1Number = document.getElementById('card1Number');
         this.card2Number = document.getElementById('card2Number');
@@ -17,169 +34,288 @@ class ChooseCardsPage {
         this.selectionTimer = document.getElementById('selectionTimer');
         this.randomSelectBtn = document.getElementById('randomSelectBtn');
         this.clearSelectionBtn = document.getElementById('clearSelectionBtn');
-        this.loadingOverlay = document.getElementById('loadingOverlay');
-        this.loadingText = document.getElementById('loadingText');
-        this.playerName = document.getElementById('playerName');
-        this.playerId = document.getElementById('playerId');
-        this.playerAvatar = document.getElementById('playerAvatar');
         
-        // Game state
-        this.takenCards = new Set();
-        this.selectedCards = [];
-        this.totalCards = 500;
-        this.maxCards = 2;
-        this.localTimer = null;
+        // Set player info
+        document.getElementById('playerName').textContent = this.gameState.playerName;
+        document.getElementById('playerId').textContent = this.gameState.playerId;
+        document.getElementById('playerAvatar').textContent = this.gameState.playerName.charAt(0).toUpperCase();
         
-        this.init();
-    }
-    
-    init() {
-        this.setupUserInfo();
-        this.setupServerListeners();
+        // Create card grid
         this.createCardGrid();
-        this.setupEventListeners();
-        
-        // Show loading while connecting
-        if (!this.server.isConnected()) {
-            this.loadingOverlay.classList.add('active');
-            this.loadingText.textContent = 'Connecting to game server...';
-        }
-    }
-    
-    setupUserInfo() {
-        this.playerName.textContent = this.gameState.playerName;
-        this.playerId.textContent = this.gameState.playerId;
-        this.playerAvatar.textContent = this.gameState.playerName.charAt(0).toUpperCase();
-        
-        // Generate random avatar color
-        const colors = ['#00b4d8', '#0077b6', '#0096c7', '#005f8a', '#03045e'];
-        this.playerAvatar.style.background = colors[Math.floor(Math.random() * colors.length)];
     }
     
     setupServerListeners() {
-        // When connected to server
-        this.server.on('connected', () => {
-            console.log('Connected to server');
-            this.loadingOverlay.classList.remove('active');
-            
-            // Load initial game state
-            this.takenCards = new Set(this.server.getTakenCards());
+        // When server sends game state
+        this.server.on('game-state', (state) => {
+            console.log('Received game state:', state);
+            this.takenCards = new Set(state.takenCards || []);
             this.updateCardGrid();
             this.updateDisplays();
         });
         
-        // When disconnected
-        this.server.on('disconnected', () => {
-            console.warn('Disconnected from server');
-            BingoUtils.showNotification('Lost connection to server. Trying to reconnect...', 'warning');
-            this.loadingOverlay.classList.add('active');
-            this.loadingText.textContent = 'Reconnecting...';
-        });
-        
-        // Game state updates
-        this.server.on('game-state', (state) => {
-            console.log('Game state:', state.phase);
-            this.handleGamePhase(state.phase);
-        });
-        
-        // Selection countdown
-        this.server.on('selection-countdown', (seconds) => {
-            this.updateTimerDisplay(seconds);
-            
-            if (seconds <= 0) {
-                this.handleSelectionEnd();
-            }
-        });
-        
-        // Urgent warning
-        this.server.on('urgent-warning', (seconds) => {
-            this.handleUrgentCountdown(seconds);
-        });
-        
-        // Card taken by another player
+        // When card is taken by someone
         this.server.on('card-taken', (data) => {
-            console.log('Card taken:', data.cardNumber);
+            console.log('Card taken event:', data);
             this.takenCards.add(data.cardNumber);
             this.updateCardGrid();
-            this.totalCardsTaken.textContent = this.takenCards.size;
+            this.updateDisplays();
             
-            // If this card was selected by current player, deselect it
+            // Remove from our selection if it was taken by someone else
             if (this.selectedCards.includes(data.cardNumber) && data.playerId !== this.gameState.playerId) {
-                const index = this.selectedCards.indexOf(data.cardNumber);
-                if (index > -1) {
-                    this.selectedCards.splice(index, 1);
-                    this.updateSelectedCardsDisplay();
-                }
+                this.removeCardFromSelection(data.cardNumber);
             }
         });
         
-        // Card released
+        // When card is released
         this.server.on('card-released', (data) => {
-            console.log('Card released:', data.cardNumber);
+            console.log('Card released event:', data);
             this.takenCards.delete(data.cardNumber);
             this.updateCardGrid();
-            this.totalCardsTaken.textContent = this.takenCards.size;
+            this.updateDisplays();
         });
         
-        // Card selection confirmed
+        // When our card selection is confirmed
         this.server.on('card-selected', (data) => {
-            if (data.success) {
-                console.log('Card selection confirmed:', data.cardNumber);
-                if (!this.selectedCards.includes(data.cardNumber)) {
-                    this.selectedCards.push(data.cardNumber);
-                    this.updateSelectedCardsDisplay();
-                }
+            console.log('Card selected confirmed:', data);
+            if (data.success && !this.selectedCards.includes(data.cardNumber)) {
+                this.selectedCards.push(data.cardNumber);
+                this.updateSelectedCardsDisplay();
             }
         });
         
-        // Card unavailable
+        // When card is unavailable
         this.server.on('card-unavailable', (cardNumber) => {
+            console.log('Card unavailable:', cardNumber);
             BingoUtils.showNotification(`Card #${cardNumber} is already taken!`, 'error');
             this.removeCardFromSelection(cardNumber);
         });
         
-        // Game phase change
+        // Selection countdown
+        this.server.on('selection-countdown', (data) => {
+            console.log('Selection countdown:', data.seconds);
+            this.updateTimerDisplay(data.seconds);
+            
+            if (data.seconds <= 10) {
+                this.selectionTimer.classList.add('animate-shake');
+            }
+            
+            if (data.seconds <= 0) {
+                this.handleSelectionEnd();
+            }
+        });
+        
+        // Game phase changes
         this.server.on('game-phase-change', (phase) => {
-            this.handleGamePhase(phase);
+            console.log('Game phase changed to:', phase);
+            
+            if (phase === 'ready') {
+                this.handleReadyPhase();
+            } else if (phase === 'playing') {
+                this.handleGameStart();
+            }
+        });
+        
+        // Ready countdown
+        this.server.on('ready-countdown', (seconds) => {
+            console.log('Ready countdown:', seconds);
+            BingoUtils.showNotification(`Game starts in ${seconds}...`, 'info');
         });
     }
     
-    handleGamePhase(phase) {
-        console.log('Phase changed to:', phase);
+    createCardGrid() {
+        if (!this.cardsGrid) return;
         
-        switch(phase) {
-            case 'selection':
-                // Game is in selection phase
-                break;
-                
-            case 'ready':
-                // 3-second READY animation starting
-                this.handleReadyPhase();
-                break;
-                
-            case 'playing':
-                // Game has started, redirect to game page
-                this.handleGameStart();
-                break;
-                
-            case 'ended':
-                // Game ended, show winner
-                break;
+        this.cardsGrid.innerHTML = '';
+        
+        for (let i = 1; i <= this.totalCards; i++) {
+            const card = document.createElement('div');
+            card.className = 'card-number';
+            card.textContent = i;
+            card.dataset.cardNumber = i;
+            
+            if (this.takenCards.has(i)) {
+                card.classList.add('taken');
+                card.title = 'Taken by another player';
+            } else {
+                card.addEventListener('click', () => this.handleCardClick(i));
+            }
+            
+            if (this.selectedCards.includes(i)) {
+                card.classList.add('selected');
+            }
+            
+            this.cardsGrid.appendChild(card);
+        }
+    }
+    
+    updateCardGrid() {
+        const cards = this.cardsGrid.querySelectorAll('.card-number');
+        cards.forEach(card => {
+            const cardNum = parseInt(card.dataset.cardNumber);
+            
+            if (this.takenCards.has(cardNum)) {
+                card.classList.add('taken');
+                card.title = 'Taken by another player';
+                card.onclick = null;
+            } else {
+                card.classList.remove('taken');
+                card.title = 'Click to select';
+                card.onclick = () => this.handleCardClick(cardNum);
+            }
+            
+            if (this.selectedCards.includes(cardNum)) {
+                card.classList.add('selected');
+            } else {
+                card.classList.remove('selected');
+            }
+        });
+    }
+    
+    handleCardClick(cardNumber) {
+        console.log('Card clicked:', cardNumber);
+        
+        // Check if already selected
+        if (this.selectedCards.includes(cardNumber)) {
+            this.deselectCard(cardNumber);
+            return;
+        }
+        
+        // Check max cards
+        if (this.selectedCards.length >= this.maxCards) {
+            BingoUtils.showNotification(`You can only select ${this.maxCards} cards`, 'warning');
+            return;
+        }
+        
+        // Select card
+        this.selectCard(cardNumber);
+    }
+    
+    selectCard(cardNumber) {
+        console.log('Selecting card:', cardNumber);
+        
+        // Send to server
+        this.server.selectCard(cardNumber);
+        
+        // Optimistically add to selection
+        this.selectedCards.push(cardNumber);
+        this.updateSelectedCardsDisplay();
+        this.updateDisplays();
+        
+        BingoUtils.showNotification(`Selected card #${cardNumber}`, 'success');
+    }
+    
+    deselectCard(cardNumber) {
+        console.log('Deselecting card:', cardNumber);
+        
+        // Send to server
+        this.server.deselectCard(cardNumber);
+        
+        // Remove from selection
+        this.removeCardFromSelection(cardNumber);
+        
+        BingoUtils.showNotification(`Deselected card #${cardNumber}`, 'info');
+    }
+    
+    removeCardFromSelection(cardNumber) {
+        const index = this.selectedCards.indexOf(cardNumber);
+        if (index > -1) {
+            this.selectedCards.splice(index, 1);
+            this.updateSelectedCardsDisplay();
+            this.updateDisplays();
+        }
+    }
+    
+    updateSelectedCardsDisplay() {
+        // Update card numbers
+        if (this.card1Number) this.card1Number.textContent = this.selectedCards[0] || '--';
+        if (this.card2Number) this.card2Number.textContent = this.selectedCards[1] || '--';
+        
+        // Update previews
+        this.updateCardPreview(1, this.selectedCards[0]);
+        this.updateCardPreview(2, this.selectedCards[1]);
+        
+        // Update progress
+        if (this.selectionProgress) {
+            const progress = (this.selectedCards.length / this.maxCards) * 100;
+            this.selectionProgress.style.width = `${progress}%`;
+        }
+        
+        // Update counters
+        if (this.cardsSelected) this.cardsSelected.textContent = this.selectedCards.length;
+    }
+    
+    updateCardPreview(cardIndex, cardNumber) {
+        const previewElement = cardIndex === 1 ? this.card1Preview : this.card2Preview;
+        if (!previewElement) return;
+        
+        if (!cardNumber) {
+            previewElement.innerHTML = '';
+            for (let i = 0; i < 25; i++) {
+                const cell = document.createElement('div');
+                cell.className = 'preview-cell';
+                previewElement.appendChild(cell);
+            }
+            return;
+        }
+        
+        // Get card numbers
+        const cardNumbers = BingoUtils.generateBingoCardNumbers(cardNumber);
+        previewElement.innerHTML = '';
+        
+        for (let i = 0; i < 25; i++) {
+            const cell = document.createElement('div');
+            cell.className = 'preview-cell';
+            
+            const row = Math.floor(i / 5);
+            const col = i % 5;
+            
+            if (row === 2 && col === 2) {
+                cell.textContent = 'FREE';
+                cell.classList.add('free');
+            } else {
+                const numberIndex = col * 5 + row;
+                cell.textContent = cardNumbers[numberIndex] || '';
+            }
+            
+            previewElement.appendChild(cell);
+        }
+    }
+    
+    updateDisplays() {
+        if (this.totalCardsTaken) this.totalCardsTaken.textContent = this.takenCards.size;
+        if (this.activePlayers) {
+            const playerCount = Math.ceil(this.takenCards.size / 2);
+            this.activePlayers.textContent = playerCount;
+        }
+    }
+    
+    updateTimerDisplay(seconds) {
+        if (!this.selectionTimer) return;
+        
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        this.selectionTimer.textContent = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        
+        if (seconds <= 10) {
+            this.selectionTimer.style.color = '#ff4b4b';
+        } else if (seconds <= 30) {
+            this.selectionTimer.style.color = '#ff9e00';
+        } else {
+            this.selectionTimer.style.color = '#00b4d8';
         }
     }
     
     handleReadyPhase() {
-        // Show notification
-        BingoUtils.showNotification('Game starting in 3 seconds...', 'info');
-        
         // Auto-select cards if none selected
         if (this.selectedCards.length === 0) {
             this.randomSelectCards();
         }
+        
+        BingoUtils.showNotification('Game starting in 3 seconds...', 'info');
     }
     
     handleGameStart() {
-        // Save selected cards to game state
+        // Save selected cards
         this.gameState.selectedCards = [...this.selectedCards];
         this.gameState.saveToSession();
         
@@ -195,212 +331,7 @@ class ChooseCardsPage {
             this.randomSelectCards();
         }
         
-        // Show notification
-        BingoUtils.showNotification('Card selection ended! Game starting soon...', 'info');
-    }
-    
-    createCardGrid() {
-        this.cardsGrid.innerHTML = '';
-        
-        for (let i = 1; i <= this.totalCards; i++) {
-            const cardElement = document.createElement('div');
-            cardElement.className = 'card-number';
-            cardElement.textContent = i;
-            cardElement.dataset.cardNumber = i;
-            
-            if (this.takenCards.has(i)) {
-                cardElement.classList.add('taken');
-                cardElement.title = 'Taken by another player';
-            } else {
-                cardElement.addEventListener('click', () => this.selectCard(i));
-            }
-            
-            if (this.selectedCards.includes(i)) {
-                cardElement.classList.add('selected');
-            }
-            
-            this.cardsGrid.appendChild(cardElement);
-        }
-        
-        this.updateDisplays();
-    }
-    
-    updateCardGrid() {
-        document.querySelectorAll('.card-number').forEach(card => {
-            const cardNum = parseInt(card.dataset.cardNumber);
-            
-            // Update taken status
-            if (this.takenCards.has(cardNum)) {
-                card.classList.add('taken');
-                card.title = 'Taken by another player';
-                card.onclick = null;
-            } else {
-                card.classList.remove('taken');
-                card.title = 'Click to select';
-                card.onclick = () => this.selectCard(cardNum);
-            }
-            
-            // Update selected status
-            if (this.selectedCards.includes(cardNum)) {
-                card.classList.add('selected');
-            } else {
-                card.classList.remove('selected');
-            }
-        });
-    }
-    
-    selectCard(cardNumber) {
-        console.log('Selecting card:', cardNumber);
-        
-        // Check if already selected
-        if (this.selectedCards.includes(cardNumber)) {
-            // Deselect card
-            this.deselectCard(cardNumber);
-            return;
-        }
-        
-        // Check max cards
-        if (this.selectedCards.length >= this.maxCards) {
-            BingoUtils.showNotification(`You can only select ${this.maxCards} cards`, 'warning');
-            return;
-        }
-        
-        // Check if card is available
-        if (this.takenCards.has(cardNumber)) {
-            BingoUtils.showNotification(`Card #${cardNumber} is already taken`, 'error');
-            return;
-        }
-        
-        // Send selection to server
-        if (this.server.isConnected()) {
-            const success = this.server.selectCard(cardNumber);
-            if (success) {
-                this.selectedCards.push(cardNumber);
-                this.updateSelectedCardsDisplay();
-                this.updateDisplays();
-                BingoUtils.showNotification(`Card #${cardNumber} selected!`, 'success');
-            }
-        } else {
-            // Fallback: local selection
-            this.selectedCards.push(cardNumber);
-            this.updateSelectedCardsDisplay();
-            this.updateDisplays();
-            BingoUtils.showNotification(`Card #${cardNumber} selected (offline mode)`, 'info');
-        }
-    }
-    
-    deselectCard(cardNumber) {
-        console.log('Deselecting card:', cardNumber);
-        
-        const index = this.selectedCards.indexOf(cardNumber);
-        if (index > -1) {
-            this.selectedCards.splice(index, 1);
-            
-            // Release card on server
-            if (this.server.isConnected()) {
-                this.server.clearSelection(cardNumber);
-            }
-            
-            this.updateSelectedCardsDisplay();
-            this.updateDisplays();
-            BingoUtils.showNotification(`Card #${cardNumber} deselected`, 'info');
-        }
-    }
-    
-    removeCardFromSelection(cardNumber) {
-        const index = this.selectedCards.indexOf(cardNumber);
-        if (index > -1) {
-            this.selectedCards.splice(index, 1);
-            this.updateSelectedCardsDisplay();
-            this.updateDisplays();
-        }
-    }
-    
-    updateSelectedCardsDisplay() {
-        // Update card numbers
-        this.card1Number.textContent = this.selectedCards[0] || '--';
-        this.card2Number.textContent = this.selectedCards[1] || '--';
-        
-        // Update previews
-        this.updateCardPreview(1, this.selectedCards[0]);
-        this.updateCardPreview(2, this.selectedCards[1]);
-        
-        // Update progress bar
-        const progress = (this.selectedCards.length / this.maxCards) * 100;
-        this.selectionProgress.style.width = `${progress}%`;
-        
-        // Update counters
-        this.cardsSelected.textContent = this.selectedCards.length;
-    }
-    
-    updateCardPreview(cardIndex, cardNumber) {
-        const previewElement = cardIndex === 1 ? this.card1Preview : this.card2Preview;
-        
-        if (!cardNumber) {
-            previewElement.innerHTML = '';
-            for (let i = 0; i < 25; i++) {
-                const cell = document.createElement('div');
-                cell.className = 'preview-cell';
-                cell.textContent = '';
-                previewElement.appendChild(cell);
-            }
-            return;
-        }
-        
-        // Get deterministic card numbers
-        const cardNumbers = BingoUtils.generateBingoCardNumbers(cardNumber);
-        previewElement.innerHTML = '';
-        
-        for (let i = 0; i < 25; i++) {
-            const cell = document.createElement('div');
-            cell.className = 'preview-cell';
-            
-            const row = Math.floor(i / 5);
-            const col = i % 5;
-            
-            if (row === 2 && col === 2) { // Center is FREE
-                cell.textContent = 'FREE';
-                cell.classList.add('free');
-            } else {
-                const numberIndex = col * 5 + row;
-                cell.textContent = cardNumbers[numberIndex] || '';
-            }
-            
-            previewElement.appendChild(cell);
-        }
-    }
-    
-    updateDisplays() {
-        this.cardsSelected.textContent = this.selectedCards.length;
-        this.totalCardsTaken.textContent = this.takenCards.size;
-        
-        // Estimate active players (cards taken / max cards per player)
-        const estimatedPlayers = Math.ceil(this.takenCards.size / 2);
-        this.activePlayers.textContent = estimatedPlayers;
-    }
-    
-    updateTimerDisplay(seconds) {
-        const minutes = Math.floor(seconds / 60);
-        const secs = seconds % 60;
-        this.selectionTimer.textContent = `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-        
-        // Update color based on time
-        if (seconds <= 10) {
-            this.selectionTimer.style.color = '#ff4b4b';
-            this.selectionTimer.classList.add('animate-shake');
-        } else if (seconds <= 30) {
-            this.selectionTimer.style.color = '#ff9e00';
-            this.selectionTimer.classList.remove('animate-shake');
-        } else {
-            this.selectionTimer.style.color = '#00b4d8';
-            this.selectionTimer.classList.remove('animate-shake');
-        }
-    }
-    
-    handleUrgentCountdown(seconds) {
-        if (seconds <= 10) {
-            BingoUtils.showNotification(`${seconds} seconds left!`, 'warning');
-        }
+        BingoUtils.showNotification('Selection time ended!', 'warning');
     }
     
     randomSelectCards() {
@@ -410,74 +341,47 @@ class ChooseCardsPage {
         this.selectedCards = [];
         
         // Find available cards
-        const availableCards = [];
+        const available = [];
         for (let i = 1; i <= this.totalCards; i++) {
             if (!this.takenCards.has(i)) {
-                availableCards.push(i);
+                available.push(i);
             }
         }
         
-        if (availableCards.length === 0) {
-            BingoUtils.showNotification('No available cards!', 'error');
+        if (available.length === 0) {
+            BingoUtils.showNotification('No cards available!', 'error');
             return;
         }
         
         // Shuffle and select
-        for (let i = availableCards.length - 1; i > 0; i--) {
+        for (let i = available.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
-            [availableCards[i], availableCards[j]] = [availableCards[j], availableCards[i]];
+            [available[i], available[j]] = [available[j], available[i]];
         }
         
         // Select cards
-        const cardsToSelect = Math.min(this.maxCards, availableCards.length);
-        for (let i = 0; i < cardsToSelect; i++) {
-            const cardNumber = availableCards[i];
-            if (this.server.isConnected()) {
-                this.server.selectCard(cardNumber);
-            }
-            this.selectedCards.push(cardNumber);
+        const toSelect = Math.min(this.maxCards, available.length);
+        for (let i = 0; i < toSelect; i++) {
+            this.selectCard(available[i]);
         }
-        
-        this.updateSelectedCardsDisplay();
-        this.updateDisplays();
-        
-        BingoUtils.showNotification(`Randomly selected cards: ${this.selectedCards.join(', ')}`, 'success');
-    }
-    
-    clearSelection() {
-        console.log('Clearing selection...');
-        
-        // Clear from server
-        this.selectedCards.forEach(cardNumber => {
-            if (this.server.isConnected()) {
-                this.server.clearSelection(cardNumber);
-            }
-        });
-        
-        // Clear locally
-        this.selectedCards = [];
-        this.updateSelectedCardsDisplay();
-        this.updateDisplays();
-        
-        BingoUtils.showNotification('All cards deselected', 'info');
     }
     
     setupEventListeners() {
-        this.randomSelectBtn.addEventListener('click', () => this.randomSelectCards());
-        this.clearSelectionBtn.addEventListener('click', () => this.clearSelection());
+        if (this.randomSelectBtn) {
+            this.randomSelectBtn.addEventListener('click', () => this.randomSelectCards());
+        }
         
-        // Handle page visibility
-        document.addEventListener('visibilitychange', () => {
-            if (document.hidden) {
-                console.log('Page hidden');
-            } else {
-                console.log('Page visible');
-            }
-        });
+        if (this.clearSelectionBtn) {
+            this.clearSelectionBtn.addEventListener('click', () => {
+                this.selectedCards.forEach(card => this.deselectCard(card));
+            });
+        }
     }
 }
 
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    new ChooseCardsPage();
+    setTimeout(() => {
+        new ChooseCardsPage();
+    }, 500);
 });
