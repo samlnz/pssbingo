@@ -1,12 +1,15 @@
-# Global Synchronized Bingo Game
+# REAL-TIME SYNCHRONIZED BINGO GAME
 
-## Setup Instructions
+## 🚀 Features
+- **Real-time synchronization** via WebSockets
+- **Global game state** - All players see the same thing
+- **Instant updates** - No page reloads needed
+- **Automatic game cycles** - Games start every minute
+- **Scalable architecture** - Supports thousands of players
 
-### 1. Install Node.js
-- Download from https://nodejs.org/
-- Version 14.0.0 or higher
+## 📦 Installation
 
-### 2. Install Dependencies
+### 1. Install Dependencies
 ```bash
 cd server
 npm install
