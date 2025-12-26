@@ -1,361 +1,160 @@
-// REAL-TIME SYNCHRONIZED CARD SELECTION
-class RealTimeChooseCards {
+// ====================================================
+// CHOOSE-CARDS.JS - Updated with Deterministic Cards
+// ====================================================
+
+class ChooseCardsPage {
     constructor() {
-        this.rtClient = realTimeClient;
         this.gameState = gameState;
+        this.telegramManager = telegramManager;
         
-        // DOM Elements
-        this.elements = {};
+        // DOM elements
+        this.cardsGrid = document.getElementById('cardsGrid');
+        this.card1Number = document.getElementById('card1Number');
+        this.card2Number = document.getElementById('card2Number');
+        this.card1Preview = document.getElementById('card1Preview');
+        this.card2Preview = document.getElementById('card2Preview');
+        this.cardsSelected = document.getElementById('cardsSelected');
+        this.totalCardsTaken = document.getElementById('totalCardsTaken');
+        this.activePlayers = document.getElementById('activePlayers');
+        this.selectionProgress = document.getElementById('selectionProgress');
+        this.selectionTimer = document.getElementById('selectionTimer');
+        this.randomSelectBtn = document.getElementById('randomSelectBtn');
+        this.clearSelectionBtn = document.getElementById('clearSelectionBtn');
+        this.loadingOverlay = document.getElementById('loadingOverlay');
+        this.loadingText = document.getElementById('loadingText');
+        this.playerName = document.getElementById('playerName');
+        this.playerId = document.getElementById('playerId');
+        this.playerAvatar = document.getElementById('playerAvatar');
         
-        // State
-        this.selectedCards = [];
+        // Game state
         this.takenCards = new Set();
         this.totalCards = 500;
+        this.maxCards = 2;
+        this.selectionTime = 60;
+        this.timerInterval = null;
         
         this.init();
     }
-    
-    async init() {
-        await this.setupDOM();
-        this.setupEventListeners();
-        this.setupRealTimeListeners();
-        
-        // Register player with server
-        this.registerPlayer();
-    }
-    
-    async setupDOM() {
-        // Get all DOM elements
-        const ids = [
-            'cardsGrid', 'card1Number', 'card2Number', 'card1Preview', 'card2Preview',
-            'cardsSelected', 'totalCardsTaken', 'activePlayers', 'selectionProgress',
-            'selectionTimer', 'randomSelectBtn', 'clearSelectionBtn', 'loadingOverlay',
-            'loadingText', 'playerName', 'playerId', 'playerAvatar'
-        ];
-        
-        ids.forEach(id => {
-            this.elements[id] = document.getElementById(id);
-        });
-        
-        // Set player info
-        if (this.elements.playerName) {
-            this.elements.playerName.textContent = this.gameState.playerName;
-        }
-        if (this.elements.playerId) {
-            this.elements.playerId.textContent = this.gameState.playerId;
-        }
-        if (this.elements.playerAvatar) {
-            this.elements.playerAvatar.textContent = this.gameState.playerName.charAt(0).toUpperCase();
-        }
-        
-        // Create card grid
+
+    init() {
+        this.setupUserInfo();
+        this.generateTakenCards();
         this.createCardGrid();
-    }
-    
-    registerPlayer() {
-        if (!this.rtClient.getConnectionStatus()) {
-            console.warn('Waiting for connection...');
-            setTimeout(() => this.registerPlayer(), 1000);
-            return;
-        }
         
-        const registered = this.rtClient.registerPlayer(
-            this.gameState.playerName,
-            this.gameState.playerId
-        );
+        // Set initial player count to 0 (no fake players)
+        this.gameState.activePlayers = 0;
         
-        if (!registered) {
-            console.error('Failed to register player');
-            setTimeout(() => this.registerPlayer(), 2000);
-        }
-    }
-    
-    setupRealTimeListeners() {
-        // When game state updates from server
-        this.rtClient.on('game-state', (state) => {
-            console.log('Game state synchronized:', state.phase);
-            this.handleGameState(state);
-        });
-        
-        // When card is taken by another player
-        this.rtClient.on('card-taken', (data) => {
-            console.log('Card taken remotely:', data.cardNumber);
-            this.takenCards.add(data.cardNumber);
-            this.updateCardGrid();
-            this.updateDisplays();
-            
-            // Remove from selection if it was ours
-            if (this.selectedCards.includes(data.cardNumber)) {
-                this.removeCardFromSelection(data.cardNumber);
-            }
-        });
-        
-        // When card is released
-        this.rtClient.on('card-released', (data) => {
-            console.log('Card released remotely:', data.cardNumber);
-            this.takenCards.delete(data.cardNumber);
-            this.updateCardGrid();
-            this.updateDisplays();
-        });
-        
-        // When our selection is confirmed
-        this.rtClient.on('card-selected', (data) => {
-            if (data.success && !this.selectedCards.includes(data.cardNumber)) {
-                this.selectedCards.push(data.cardNumber);
-                this.updateSelectedCardsDisplay();
-            }
-        });
-        
-        // When card is unavailable
-        this.rtClient.on('card-unavailable', (data) => {
-            console.log('Card unavailable:', data.cardNumber);
-            this.removeCardFromSelection(data.cardNumber);
-            this.showNotification(`Card #${data.cardNumber} is already taken!`, 'error');
-        });
-        
-        // Selection countdown
-        this.rtClient.on('selection-countdown', (data) => {
-            this.updateTimerDisplay(data.seconds);
-            
-            if (data.seconds <= 10) {
-                this.elements.selectionTimer.classList.add('animate-shake');
-                if ([10, 5, 3, 2, 1].includes(data.seconds)) {
-                    this.showNotification(`${data.seconds} seconds left!`, 'warning');
-                }
-            } else {
-                this.elements.selectionTimer.classList.remove('animate-shake');
-            }
-            
-            if (data.seconds <= 0) {
-                this.handleSelectionEnd();
-            }
-        });
-        
-        // Game phase changes
-        this.rtClient.on('game-phase', (data) => {
-            this.handleGamePhase(data.phase);
-        });
-        
-        // Ready countdown
-        this.rtClient.on('ready-countdown', (seconds) => {
-            this.showNotification(`Game starts in ${seconds}...`, 'info');
-        });
-        
-        // Players updated
-        this.rtClient.on('players-updated', (data) => {
-            if (this.elements.activePlayers) {
-                this.elements.activePlayers.textContent = data.playerCount;
-            }
-        });
-        
-        // When connected
-        this.rtClient.on('connected', () => {
-            console.log('Real-time client connected');
-            if (this.elements.loadingOverlay) {
-                this.elements.loadingOverlay.classList.remove('active');
-            }
-        });
-        
-        // When disconnected
-        this.rtClient.on('disconnected', () => {
-            console.log('Real-time client disconnected');
-            this.showNotification('Lost connection to server. Reconnecting...', 'warning');
-            if (this.elements.loadingOverlay) {
-                this.elements.loadingOverlay.classList.add('active');
-            }
-        });
-    }
-    
-    handleGameState(state) {
-        // Update taken cards from server
-        this.takenCards = new Set(state.takenCards || []);
-        this.updateCardGrid();
         this.updateDisplays();
-        
-        // Update timer
-        if (state.selectionTimeLeft !== undefined) {
-            this.updateTimerDisplay(state.selectionTimeLeft);
-        }
-        
-        // Handle current phase
-        this.handleGamePhase(state.phase);
+        this.startSelectionTimer();
+        this.setupEventListeners();
     }
-    
-    handleGamePhase(phase) {
-        console.log('Game phase changed to:', phase);
+
+    setupUserInfo() {
+        this.playerName.textContent = this.gameState.playerName;
+        this.playerId.textContent = this.gameState.playerId;
+        this.playerAvatar.textContent = this.gameState.playerName.charAt(0).toUpperCase();
         
-        switch(phase) {
-            case 'selection':
-                // Normal operation
-                break;
-                
-            case 'ready':
-                this.handleReadyPhase();
-                break;
-                
-            case 'playing':
-                this.handleGameStart();
-                break;
-                
-            case 'ended':
-                // Game ended, will restart automatically
-                break;
-        }
+        // Generate random avatar color
+        const colors = ['#00b4d8', '#0077b6', '#0096c7', '#005f8a', '#03045e'];
+        this.playerAvatar.style.background = colors[Math.floor(Math.random() * colors.length)];
     }
-    
-    handleReadyPhase() {
-        this.showNotification('Game starting in 3 seconds...', 'info');
-        
-        // Auto-select random cards if none selected
-        if (this.selectedCards.length === 0) {
-            this.randomSelectCards();
-        }
+
+    generateTakenCards() {
+        // Only track real players who selected through the link
+        // Start with empty taken cards
+        this.takenCards = new Set();
     }
-    
-    handleGameStart() {
-        // Save selected cards
-        this.gameState.selectedCards = [...this.selectedCards];
-        this.gameState.saveToSession();
-        
-        // Redirect to game page
-        setTimeout(() => {
-            window.location.href = 'game.html';
-        }, 1000);
-    }
-    
-    handleSelectionEnd() {
-        if (this.selectedCards.length === 0) {
-            this.randomSelectCards();
-        }
-        this.showNotification('Selection time ended!', 'warning');
-    }
-    
+
     createCardGrid() {
-        if (!this.elements.cardsGrid) return;
-        
-        this.elements.cardsGrid.innerHTML = '';
+        this.cardsGrid.innerHTML = '';
         
         for (let i = 1; i <= this.totalCards; i++) {
-            const card = document.createElement('div');
-            card.className = 'card-number';
-            card.textContent = i;
-            card.dataset.cardNumber = i;
+            const cardElement = document.createElement('div');
+            cardElement.className = 'card-number';
+            cardElement.textContent = i;
+            cardElement.dataset.cardNumber = i;
             
             if (this.takenCards.has(i)) {
-                card.classList.add('taken');
-                card.title = 'Taken by another player';
+                cardElement.classList.add('taken');
+                cardElement.title = 'Already taken by another player';
             } else {
-                card.addEventListener('click', () => this.selectCard(i));
+                cardElement.addEventListener('click', () => this.selectCard(i));
             }
             
-            if (this.selectedCards.includes(i)) {
-                card.classList.add('selected');
-            }
-            
-            this.elements.cardsGrid.appendChild(card);
+            this.cardsGrid.appendChild(cardElement);
         }
     }
-    
-    updateCardGrid() {
-        const cards = this.elements.cardsGrid?.querySelectorAll('.card-number');
-        if (!cards) return;
+
+    selectCard(cardNumber) {
+        // Check if card is already selected - if so, deselect it
+        const index = this.gameState.selectedCards.indexOf(cardNumber);
         
-        cards.forEach(card => {
-            const cardNum = parseInt(card.dataset.cardNumber);
-            
-            if (this.takenCards.has(cardNum)) {
-                card.classList.add('taken');
-                card.title = 'Taken by another player';
-                card.onclick = null;
-            } else {
-                card.classList.remove('taken');
-                card.title = 'Click to select';
-                card.onclick = () => this.selectCard(cardNum);
+        if (index > -1) {
+            // Card is already selected - deselect it
+            this.gameState.selectedCards.splice(index, 1);
+            BingoUtils.showNotification(`Card #${cardNumber} deselected`, 'info');
+        } else {
+            // Check if max cards reached
+            if (this.gameState.selectedCards.length >= this.maxCards) {
+                BingoUtils.showNotification(`You can only select ${this.maxCards} cards maximum`, 'warning');
+                return;
             }
             
-            if (this.selectedCards.includes(cardNum)) {
+            // Add card to selection
+            this.gameState.selectedCards.push(cardNumber);
+            BingoUtils.showNotification(`Card #${cardNumber} selected!`, 'success');
+        }
+        
+        // Update displays
+        this.updateCardElements();
+        this.updateSelectedCardsDisplay();
+        this.updateDisplays();
+    }
+
+    updateCardElements() {
+        document.querySelectorAll('.card-number').forEach(card => {
+            const cardNum = parseInt(card.dataset.cardNumber);
+            
+            // Remove selected class from all
+            card.classList.remove('selected');
+            
+            // Add selected class to chosen cards
+            if (this.gameState.selectedCards.includes(cardNum)) {
                 card.classList.add('selected');
-            } else {
-                card.classList.remove('selected');
             }
         });
     }
-    
-    selectCard(cardNumber) {
-        // Check if already selected
-        if (this.selectedCards.includes(cardNumber)) {
-            this.deselectCard(cardNumber);
-            return;
-        }
-        
-        // Check max cards
-        if (this.selectedCards.length >= 2) {
-            this.showNotification('You can only select 2 cards', 'warning');
-            return;
-        }
-        
-        // Send to server
-        if (this.rtClient.getConnectionStatus()) {
-            this.rtClient.selectCard(cardNumber);
-            
-            // Optimistically add to selection
-            this.selectedCards.push(cardNumber);
-            this.updateSelectedCardsDisplay();
-            this.updateDisplays();
-            
-            this.showNotification(`Selected card #${cardNumber}`, 'success');
-        } else {
-            this.showNotification('Not connected to server', 'error');
-        }
-    }
-    
-    deselectCard(cardNumber) {
-        if (this.rtClient.getConnectionStatus()) {
-            this.rtClient.deselectCard(cardNumber);
-        }
-        
-        this.removeCardFromSelection(cardNumber);
-        this.showNotification(`Deselected card #${cardNumber}`, 'info');
-    }
-    
-    removeCardFromSelection(cardNumber) {
-        const index = this.selectedCards.indexOf(cardNumber);
-        if (index > -1) {
-            this.selectedCards.splice(index, 1);
-            this.updateSelectedCardsDisplay();
-            this.updateDisplays();
-        }
-    }
-    
+
     updateSelectedCardsDisplay() {
-        if (this.elements.card1Number) {
-            this.elements.card1Number.textContent = this.selectedCards[0] || '--';
-        }
-        if (this.elements.card2Number) {
-            this.elements.card2Number.textContent = this.selectedCards[1] || '--';
-        }
+        // Update card numbers
+        this.card1Number.textContent = this.gameState.selectedCards[0] || '--';
+        this.card2Number.textContent = this.gameState.selectedCards[1] || '--';
         
         // Update previews
-        this.updateCardPreview(1, this.selectedCards[0]);
-        this.updateCardPreview(2, this.selectedCards[1]);
+        this.updateCardPreview(1, this.gameState.selectedCards[0]);
+        this.updateCardPreview(2, this.gameState.selectedCards[1]);
         
         // Update progress
-        if (this.elements.selectionProgress) {
-            const progress = (this.selectedCards.length / 2) * 100;
-            this.elements.selectionProgress.style.width = `${progress}%`;
-        }
-        
-        // Update counter
-        if (this.elements.cardsSelected) {
-            this.elements.cardsSelected.textContent = this.selectedCards.length;
-        }
+        const progress = (this.gameState.selectedCards.length / this.maxCards) * 100;
+        this.selectionProgress.style.width = `${progress}%`;
     }
-    
+
+    // UPDATED: Shows deterministic card preview
     updateCardPreview(cardIndex, cardNumber) {
-        const previewElement = cardIndex === 1 ? 
-            this.elements.card1Preview : this.elements.card2Preview;
-        if (!previewElement || !cardNumber) return;
+        const previewElement = cardIndex === 1 ? this.card1Preview : this.card2Preview;
         
+        if (!cardNumber) {
+            previewElement.innerHTML = '';
+            for (let i = 0; i < 25; i++) {
+                const cell = document.createElement('div');
+                cell.className = 'preview-cell';
+                cell.textContent = '';
+                previewElement.appendChild(cell);
+            }
+            return;
+        }
+        
+        // Get deterministic card numbers for this card number
         const cardNumbers = BingoUtils.generateBingoCardNumbers(cardNumber);
         previewElement.innerHTML = '';
         
@@ -366,7 +165,7 @@ class RealTimeChooseCards {
             const row = Math.floor(i / 5);
             const col = i % 5;
             
-            if (row === 2 && col === 2) {
+            if (row === 2 && col === 2) { // Center is FREE
                 cell.textContent = 'FREE';
                 cell.classList.add('free');
             } else {
@@ -377,32 +176,82 @@ class RealTimeChooseCards {
             previewElement.appendChild(cell);
         }
     }
-    
+
     updateDisplays() {
-        if (this.elements.totalCardsTaken) {
-            this.elements.totalCardsTaken.textContent = this.takenCards.size;
-        }
+        this.cardsSelected.textContent = this.gameState.selectedCards.length;
+        this.totalCardsTaken.textContent = this.takenCards.size;
+        this.activePlayers.textContent = this.gameState.activePlayers;
     }
-    
-    updateTimerDisplay(seconds) {
-        if (!this.elements.selectionTimer) return;
+
+    startSelectionTimer() {
+        if (this.timerInterval) {
+            clearInterval(this.timerInterval);
+        }
         
-        const mins = Math.floor(seconds / 60);
-        const secs = seconds % 60;
-        this.elements.selectionTimer.textContent = 
-            `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        this.selectionTime = 60;
+        this.updateTimerDisplay();
         
-        // Color coding
-        if (seconds <= 10) {
-            this.elements.selectionTimer.style.color = '#ff4b4b';
-        } else if (seconds <= 30) {
-            this.elements.selectionTimer.style.color = '#ff9e00';
+        this.timerInterval = setInterval(() => {
+            this.selectionTime--;
+            this.updateTimerDisplay();
+            
+            if (this.selectionTime <= 0) {
+                clearInterval(this.timerInterval);
+                this.handleTimerExpired();
+            }
+            
+            // Add urgency effect when time is low
+            if (this.selectionTime <= 10) {
+                this.selectionTimer.classList.add('animate-shake');
+                
+                // Show urgent notification at 10, 5, 3, 2, 1 seconds
+                if ([10, 5, 3, 2, 1].includes(this.selectionTime)) {
+                    BingoUtils.showNotification(`${this.selectionTime} second${this.selectionTime === 1 ? '' : 's'} left!`, 'warning');
+                }
+            }
+        }, 1000);
+    }
+
+    handleTimerExpired() {
+        // Stop the shake animation
+        this.selectionTimer.classList.remove('animate-shake');
+        
+        // Check if any cards are selected
+        if (this.gameState.selectedCards.length === 0) {
+            // No cards selected - auto select random cards
+            BingoUtils.showNotification('Time expired! Selecting random cards for you...', 'info');
+            this.randomSelectCards();
+            
+            // Wait 2 seconds then proceed
+            setTimeout(() => {
+                this.confirmSelection();
+            }, 2000);
         } else {
-            this.elements.selectionTimer.style.color = '#00b4d8';
+            // Cards are selected - proceed to game
+            BingoUtils.showNotification('Time expired! Starting game with your selected cards...', 'info');
+            this.confirmSelection();
         }
     }
-    
+
+    updateTimerDisplay() {
+        const minutes = Math.floor(this.selectionTime / 60);
+        const seconds = this.selectionTime % 60;
+        this.selectionTimer.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        
+        // Update timer color based on remaining time
+        if (this.selectionTime <= 10) {
+            this.selectionTimer.style.color = '#ff4b4b';
+        } else if (this.selectionTime <= 30) {
+            this.selectionTimer.style.color = '#ff9e00';
+        } else {
+            this.selectionTimer.style.color = '#00b4d8';
+        }
+    }
+
     randomSelectCards() {
+        // Clear any existing selection
+        this.gameState.selectedCards = [];
+        
         const availableCards = [];
         for (let i = 1; i <= this.totalCards; i++) {
             if (!this.takenCards.has(i)) {
@@ -411,49 +260,105 @@ class RealTimeChooseCards {
         }
         
         if (availableCards.length === 0) {
-            this.showNotification('No cards available!', 'error');
+            BingoUtils.showNotification('No available cards left!', 'error');
             return;
         }
         
-        // Shuffle
+        // Shuffle available cards
         for (let i = availableCards.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [availableCards[i], availableCards[j]] = [availableCards[j], availableCards[i]];
         }
         
-        // Select cards
-        const toSelect = Math.min(2, availableCards.length);
-        for (let i = 0; i < toSelect; i++) {
-            if (this.rtClient.getConnectionStatus()) {
-                this.rtClient.selectCard(availableCards[i]);
-            }
-            this.selectedCards.push(availableCards[i]);
+        // Select required number of cards
+        const cardsToSelect = Math.min(this.maxCards, availableCards.length);
+        for (let i = 0; i < cardsToSelect; i++) {
+            this.gameState.selectedCards.push(availableCards[i]);
         }
         
+        this.updateCardElements();
         this.updateSelectedCardsDisplay();
         this.updateDisplays();
         
-        this.showNotification(`Randomly selected: ${this.selectedCards.join(', ')}`, 'success');
+        // Show notification for selected cards
+        const selectedCardsText = this.gameState.selectedCards.join(', ');
+        BingoUtils.showNotification(`Randomly selected cards: ${selectedCardsText}`, 'success');
     }
-    
-    setupEventListeners() {
-        if (this.elements.randomSelectBtn) {
-            this.elements.randomSelectBtn.addEventListener('click', () => this.randomSelectCards());
+
+    clearSelection() {
+        this.gameState.selectedCards = [];
+        this.updateCardElements();
+        this.updateSelectedCardsDisplay();
+        this.updateDisplays();
+        BingoUtils.showNotification('Selection cleared!', 'info');
+    }
+
+    confirmSelection() {
+        if (this.gameState.selectedCards.length === 0) {
+            // If no cards selected even after timer, select random cards
+            this.randomSelectCards();
+            setTimeout(() => this.confirmSelection(), 1000);
+            return;
         }
         
-        if (this.elements.clearSelectionBtn) {
-            this.elements.clearSelectionBtn.addEventListener('click', () => {
-                this.selectedCards.forEach(card => this.deselectCard(card));
-            });
+        // Show loading overlay
+        this.loadingOverlay.classList.add('active');
+        this.loadingText.textContent = 'Preparing Game...';
+        
+        // Simulate API call to save selection
+        setTimeout(() => {
+            this.saveSelectionToBackend();
+            this.proceedToGame();
+        }, 1500);
+    }
+
+    saveSelectionToBackend() {
+        // Add selected cards to taken cards
+        this.gameState.selectedCards.forEach(card => {
+            this.takenCards.add(card);
+        });
+        
+        // Save game state
+        this.gameState.saveToSession();
+        
+        // Send data to backend (simulated)
+        const selectionData = {
+            action: 'card_selection',
+            playerId: this.gameState.playerId,
+            playerName: this.gameState.playerName,
+            selectedCards: this.gameState.selectedCards,
+            timestamp: Date.now()
+        };
+        
+        console.log('Sending selection data:', selectionData);
+        
+        if (this.telegramManager.isInitialized) {
+            this.telegramManager.sendData(selectionData);
         }
     }
-    
-    showNotification(message, type = 'info') {
-        BingoUtils.showNotification(message, type);
+
+    proceedToGame() {
+        this.loadingText.textContent = 'Starting Game...';
+        
+        setTimeout(() => {
+            window.location.href = 'game.html';
+        }, 1500);
+    }
+
+    setupEventListeners() {
+        this.randomSelectBtn.addEventListener('click', () => this.randomSelectCards());
+        this.clearSelectionBtn.addEventListener('click', () => this.clearSelection());
+        
+        // Handle page visibility change
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                console.log('Card selection paused');
+            }
+        });
     }
 }
 
-// Initialize
+// Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    new RealTimeChooseCards();
+    new ChooseCardsPage();
 });
