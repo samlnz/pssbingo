@@ -1,113 +1,141 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Real-Time Bingo Game</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="css/style.css">
-    <link rel="stylesheet" href="css/animations.css">
-    <link rel="stylesheet" href="css/index.css">
+    <title>Bingo Game</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: #1a1a2e;
+            color: white;
+            text-align: center;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            color: #00b4d8;
+            margin-bottom: 10px;
+        }
+        
+        .status {
+            background: #16213e;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border: 2px solid #00b4d8;
+        }
+        
+        .btn {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 18px;
+            border-radius: 10px;
+            cursor: pointer;
+            margin: 10px;
+            display: inline-block;
+            text-decoration: none;
+        }
+        
+        .btn:hover {
+            background: #45a049;
+        }
+        
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            margin: 30px 0;
+        }
+        
+        .stat-box {
+            background: rgba(255,255,255,0.1);
+            padding: 15px;
+            border-radius: 10px;
+            min-width: 120px;
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #00b4d8;
+        }
+    </style>
 </head>
-<body class="index-page">
-    <div class="app-container">
-        <div class="header">
-            <div class="logo">
-                <i class="fas fa-bolt logo-icon"></i>
-                <h1>REAL-TIME BINGO</h1>
+<body>
+    <div class="container">
+        <h1>🎯 Real-Time Bingo</h1>
+        <p>All players synchronized to the same game</p>
+        
+        <div class="status" id="status">
+            Connecting to server...
+        </div>
+        
+        <div class="stats">
+            <div class="stat-box">
+                <div class="stat-value" id="playerCount">0</div>
+                <div>Players Online</div>
             </div>
-            <p class="subtitle">Synchronized Multiplayer Game</p>
-            <div class="connection-status">
-                <span id="connectionStatus" class="status-dot"></span>
-                <span id="connectionText">Connecting...</span>
+            <div class="stat-box">
+                <div class="stat-value" id="numbersCalled">0</div>
+                <div>Numbers Called</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value" id="currentNumber">--</div>
+                <div>Current Number</div>
             </div>
         </div>
-
-        <div class="game-stats">
-            <div class="stat-card">
-                <div class="stat-value" id="currentPlayers">0</div>
-                <div class="stat-label">Online Players</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value" id="gamePhase">Waiting</div>
-                <div class="stat-label">Game Status</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value" id="nextGame">60s</div>
-                <div class="stat-label">Next Game</div>
-            </div>
-        </div>
-
-        <div class="game-info">
-            <div class="info-card highlight">
-                <i class="fas fa-sync-alt"></i>
-                <h3>Real-Time Sync</h3>
-                <p>All players see the same game state simultaneously via WebSockets</p>
-            </div>
-            <div class="info-card">
-                <i class="fas fa-users"></i>
-                <h3>Live Multiplayer</h3>
-                <p>Play with hundreds of players in perfect synchronization</p>
-            </div>
-            <div class="info-card">
-                <i class="fas fa-tachometer-alt"></i>
-                <h3>Instant Updates</h3>
-                <p>Cards, numbers, and wins update instantly for everyone</p>
-            </div>
-        </div>
-
-        <div class="start-section">
-            <div class="sync-notice">
-                <i class="fas fa-globe"></i>
-                <span>All players worldwide synchronized to the same game</span>
-            </div>
-            
-            <button class="btn-start" id="startGameBtn">
-                <i class="fas fa-play"></i>
-                JOIN GAME
-            </button>
-        </div>
-
-        <div class="rules">
-            <h2><i class="fas fa-info-circle"></i> How It Works</h2>
-            <ul>
-                <li><strong>Real-time:</strong> All players are synchronized via WebSocket connections</li>
-                <li><strong>Global:</strong> Everyone sees the same countdown and numbers</li>
-                <li><strong>Instant:</strong> Cards taken by others appear immediately for all</li>
-                <li><strong>Automatic:</strong> Games start every minute automatically</li>
-                <li><strong>Fair:</strong> Winner verification happens on the server</li>
-            </ul>
+        
+        <a href="choose-cards.html" class="btn">🎴 Choose Cards</a>
+        <a href="game.html" class="btn">▶️ Join Game</a>
+        
+        <div style="margin-top: 30px; padding: 20px; background: rgba(0,0,0,0.3); border-radius: 10px;">
+            <h3>How it works:</h3>
+            <p>1. All players are synchronized via the server</p>
+            <p>2. Server calls numbers every 5 seconds</p>
+            <p>3. Everyone sees the same numbers at the same time</p>
+            <p>4. First player to complete a line wins!</p>
         </div>
     </div>
-
-    <!-- WebSocket Connection -->
+    
     <script src="/socket.io/socket.io.js"></script>
-    
-    <!-- Game Scripts -->
-    <script src="js/card-generator.js"></script>
-    <script src="js/common.js"></script>
-    <script src="js/real-time-client.js"></script>
-    <script src="js/telegram-init.js"></script>
-    <script src="js/index.js"></script>
-    
     <script>
-        // Update connection status
-        const connectionStatus = document.getElementById('connectionStatus');
-        const connectionText = document.getElementById('connectionText');
+        const socket = io();
+        const status = document.getElementById('status');
+        const playerCount = document.getElementById('playerCount');
+        const numbersCalled = document.getElementById('numbersCalled');
+        const currentNumber = document.getElementById('currentNumber');
         
-        if (connectionStatus && connectionText) {
-            const rtClient = window.realTimeClient;
-            
-            rtClient.on('connected', () => {
-                connectionStatus.className = 'status-dot connected';
-                connectionText.textContent = 'Connected';
-            });
-            
-            rtClient.on('disconnected', () => {
-                connectionStatus.className = 'status-dot disconnected';
-                connectionText.textContent = 'Disconnected';
-            });
-        }
+        socket.on('connect', () => {
+            status.innerHTML = '✅ Connected to server';
+            status.style.background = '#0f3460';
+        });
+        
+        socket.on('game-state', (data) => {
+            if (data.currentNumber) {
+                currentNumber.textContent = data.currentNumber;
+            }
+            numbersCalled.textContent = data.totalCalled || 0;
+        });
+        
+        socket.on('player-count', (data) => {
+            playerCount.textContent = data.count;
+        });
+        
+        socket.on('new-number', (data) => {
+            currentNumber.textContent = data.number;
+            numbersCalled.textContent = data.totalCalled;
+        });
+        
+        socket.on('disconnect', () => {
+            status.innerHTML = '❌ Disconnected from server';
+            status.style.background = '#6a040f';
+        });
     </script>
 </body>
 </html>
