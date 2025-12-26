@@ -6,10 +6,6 @@ class ChooseCardsPage {
     constructor() {
         this.gameState = gameState;
         this.telegramManager = telegramManager;
-        this.server = serverConnection;
-        
-        // Initialize server connection
-        this.server.connect();
         
         // DOM elements
         this.cardsGrid = document.getElementById('cardsGrid');
@@ -90,10 +86,6 @@ class ChooseCardsPage {
     }
 
     selectCard(cardNumber) {
-        if (!this.server.isConnected) {
-            BingoUtils.showNotification('Not connected to server', 'error');
-            return;
-        }
         // Check if card is already selected - if so, deselect it
         const index = this.gameState.selectedCards.indexOf(cardNumber);
         
@@ -117,10 +109,8 @@ class ChooseCardsPage {
         this.updateCardElements();
         this.updateSelectedCardsDisplay();
         this.updateDisplays();
-     // Send to server
-        this.server.sendCardSelection(this.gameState.selectedCards);
     }
-    
+
     updateCardElements() {
         document.querySelectorAll('.card-number').forEach(card => {
             const cardNum = parseInt(card.dataset.cardNumber);
