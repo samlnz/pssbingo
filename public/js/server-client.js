@@ -1,124 +1,124 @@
-// Server Client - Fixed for synchronization
+// Global server client
 class ServerClient {
     constructor() {
         this.socket = null;
         this.connected = false;
-        this.reconnectAttempts = 0;
-        
         this.eventHandlers = {};
-        this.gameState = {};
+        
+        // Game state from server
+        this.serverGameState = {
+            phase: 'waiting',
+            selectionTimeLeft: 60,
+            currentNumber: null,
+            calledNumbers: [],
+            takenCards: [],
+            players: {}
+        };
         
         this.connect();
     }
     
     connect() {
+        // Auto-detect server URL
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const host = window.location.hostname || 'localhost';
+        const port = window.location.port || 3000;
+        const serverUrl = `${protocol}//${host}:${port}`;
+        
+        console.log('Connecting to server:', serverUrl);
+        
         try {
-            // Connect to server
-            this.socket = io();
-            
-            this.socket.on('connect', () => {
-                console.log('✅ Connected to game server');
-                this.connected = true;
-                this.reconnectAttempts = 0;
-                this.triggerEvent('connected');
+            this.socket = io(serverUrl, {
+                reconnection: true,
+                reconnectionAttempts: 5,
+                reconnectionDelay: 1000
             });
             
-            this.socket.on('disconnect', () => {
-                console.log('❌ Disconnected from server');
-                this.connected = false;
-                this.triggerEvent('disconnected');
-                this.attemptReconnect();
-            });
-            
-            this.socket.on('game-state', (state) => {
-                console.log('📊 Received game state:', state.phase);
-                this.gameState = state;
-                this.triggerEvent('game-state', state);
-            });
-            
-            this.socket.on('selection-countdown', (data) => {
-                console.log('⏰ Selection countdown:', data.seconds);
-                this.triggerEvent('selection-countdown', data);
-            });
-            
-            this.socket.on('game-phase-change', (phase) => {
-                console.log('🔄 Game phase changed to:', phase);
-                this.triggerEvent('game-phase-change', phase);
-            });
-            
-            this.socket.on('ready-countdown', (seconds) => {
-                console.log('🎮 Ready countdown:', seconds);
-                this.triggerEvent('ready-countdown', seconds);
-            });
-            
-            this.socket.on('number-called', (numberData) => {
-                console.log('🔔 Number called:', numberData.full);
-                this.triggerEvent('number-called', numberData);
-            });
-            
-            this.socket.on('card-taken', (data) => {
-                console.log('🎴 Card taken:', data.cardNumber);
-                this.triggerEvent('card-taken', data);
-            });
-            
-            this.socket.on('card-released', (data) => {
-                console.log('🎴 Card released:', data.cardNumber);
-                this.triggerEvent('card-released', data);
-            });
-            
-            this.socket.on('card-selected', (data) => {
-                console.log('✅ Card selected:', data.cardNumber);
-                this.triggerEvent('card-selected', data);
-            });
-            
-            this.socket.on('card-unavailable', (cardNumber) => {
-                console.log('❌ Card unavailable:', cardNumber);
-                this.triggerEvent('card-unavailable', cardNumber);
-            });
-            
-            this.socket.on('winner-declared', (winner) => {
-                console.log('🏆 Winner declared:', winner.playerName);
-                this.triggerEvent('winner-declared', winner);
-            });
-            
+            this.setupEventListeners();
         } catch (error) {
-            console.error('Failed to connect:', error);
-            this.attemptReconnect();
+            console.error('Failed to connect to server:', error);
+            setTimeout(() => this.connect(), 3000);
         }
     }
     
-    attemptReconnect() {
-        if (this.reconnectAttempts < 5) {
-            this.reconnectAttempts++;
-            console.log(`Reconnecting... (attempt ${this.reconnectAttempts})`);
-            
-            setTimeout(() => {
-                this.connect();
-            }, this.reconnectAttempts * 2000);
-        }
+    setupEventListeners() {
+        this.socket.on('connect', () => {
+            console.log('✅ Connected to game server');
+            this.connected = true;
+            this.triggerEvent('connected');
+        });
+        
+        this.socket.on('disconnect', () => {
+            console.log('❌ Disconnected from server');
+            this.connected = false;
+            this.triggerEvent('disconnected');
+        });
+        
+        this.socket.on('game-state', (state) => {
+            console.log('📊 Game state update:', state.phase);
+            this.serverGameState = state;
+            this.triggerEvent('game-state', state);
+        });
+        
+        this.socket.on('selection-countdown', (seconds) => {
+            this.triggerEvent('selection-countdown', seconds);
+        });
+        
+        this.socket.on('urgent-warning', (seconds) => {
+            this.triggerEvent('urgent-warning', seconds);
+        });
+        
+        this.socket.on('game-phase-change', (phase) => {
+            console.log('🔄 Game phase change:', phase);
+            this.triggerEvent('game-phase-change', phase);
+        });
+        
+        this.socket.on('number-called', (numberData) => {
+            this.triggerEvent('number-called', numberData);
+        });
+        
+        this.socket.on('card-taken', (data) => {
+            this.triggerEvent('card-taken', data);
+        });
+        
+        this.socket.on('card-released', (data) => {
+            this.triggerEvent('card-released', data);
+        });
+        
+        this.socket.on('card-selected', (data) => {
+            this.triggerEvent('card-selected', data);
+        });
+        
+        this.socket.on('card-unavailable', (cardNumber) => {
+            this.triggerEvent('card-unavailable', cardNumber);
+        });
+        
+        this.socket.on('winner-declared', (winner) => {
+            this.triggerEvent('winner-declared', winner);
+        });
     }
     
+    // Send card selection to server
     selectCard(cardNumber) {
         if (!this.connected) {
             console.warn('Not connected to server');
             return false;
         }
         
-        const data = {
+        this.socket.emit('select-card', {
             cardNumber: cardNumber,
             playerId: gameState.playerId,
             playerName: gameState.playerName
-        };
+        });
         
-        console.log('Sending card selection:', data);
-        this.socket.emit('select-card', data);
         return true;
     }
     
-    deselectCard(cardNumber) {
+    // Clear card selection
+    clearSelection(cardNumber) {
         if (!this.connected) return false;
         
-        this.socket.emit('deselect-card', {
+        this.socket.emit('clear-selection', {
             cardNumber: cardNumber,
             playerId: gameState.playerId
         });
@@ -126,6 +126,7 @@ class ServerClient {
         return true;
     }
     
+    // Claim win
     claimWin(cardNumber, pattern) {
         if (!this.connected) return false;
         
@@ -140,11 +141,21 @@ class ServerClient {
         return true;
     }
     
+    // Event handling
     on(event, handler) {
         if (!this.eventHandlers[event]) {
             this.eventHandlers[event] = [];
         }
         this.eventHandlers[event].push(handler);
+    }
+    
+    off(event, handler) {
+        if (this.eventHandlers[event]) {
+            const index = this.eventHandlers[event].indexOf(handler);
+            if (index > -1) {
+                this.eventHandlers[event].splice(index, 1);
+            }
+        }
     }
     
     triggerEvent(event, data) {
@@ -164,15 +175,15 @@ class ServerClient {
     }
     
     getTakenCards() {
-        return this.gameState.takenCards || [];
+        return this.serverGameState.takenCards || [];
     }
     
     getGamePhase() {
-        return this.gameState.phase || 'waiting';
+        return this.serverGameState.phase || 'waiting';
     }
     
     getSelectionTime() {
-        return this.gameState.selectionTimeLeft || 60;
+        return this.serverGameState.selectionTimeLeft || 60;
     }
 }
 
