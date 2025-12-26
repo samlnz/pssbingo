@@ -1,89 +1,8 @@
 // ====================================================
-// COMMON.JS - Updated with Global Game State
+// COMMON.JS - Updated with Card Generator
 // ====================================================
 
-class GlobalGameState {
-    constructor() {
-        this.gameId = this.getCurrentGameId();
-        this.gameStartTime = this.getGameStartTime();
-        this.gameDuration = 300; // 5 minutes = 300 seconds
-        this.gameInterval = 330; // 5.5 minutes between games (5 min game + 30 sec break)
-    }
-
-    getCurrentGameId() {
-        // Generate game ID based on current 5.5 minute interval
-        const now = Date.now();
-        const intervalMs = this.gameInterval * 1000;
-        const gameId = Math.floor(now / intervalMs);
-        
-        // Store in localStorage for consistency across pages
-        const storedGameId = localStorage.getItem('currentGameId');
-        if (!storedGameId || storedGameId != gameId) {
-            localStorage.setItem('currentGameId', gameId);
-            localStorage.setItem('currentGameStart', now.toString());
-        }
-        
-        return gameId;
-    }
-
-    getGameStartTime() {
-        const storedStart = localStorage.getItem('currentGameStart');
-        if (storedStart) {
-            return parseInt(storedStart);
-        }
-        
-        const now = Date.now();
-        const intervalMs = this.gameInterval * 1000;
-        const gameStart = Math.floor(now / intervalMs) * intervalMs;
-        localStorage.setItem('currentGameStart', gameStart.toString());
-        return gameStart;
-    }
-
-    isGameActive() {
-        const now = Date.now();
-        const gameStart = this.getGameStartTime();
-        const elapsed = (now - gameStart) / 1000;
-        
-        return elapsed >= 0 && elapsed < this.gameDuration;
-    }
-
-    getTimeToNextGame() {
-        const now = Date.now();
-        const gameStart = this.getGameStartTime();
-        const currentElapsed = (now - gameStart) / 1000;
-        
-        if (currentElapsed < this.gameDuration) {
-            // Current game is active
-            return 0;
-        } else {
-            // Calculate time until next game
-            const intervalMs = this.gameInterval * 1000;
-            const nextGameStart = gameStart + intervalMs;
-            return Math.max(0, Math.ceil((nextGameStart - now) / 1000));
-        }
-    }
-
-    getGameTimeElapsed() {
-        if (!this.isGameActive()) return 0;
-        
-        const now = Date.now();
-        const gameStart = this.getGameStartTime();
-        return Math.floor((now - gameStart) / 1000);
-    }
-
-    resetForNewGame() {
-        const now = Date.now();
-        const intervalMs = this.gameInterval * 1000;
-        const nextGameStart = Math.ceil(now / intervalMs) * intervalMs;
-        
-        localStorage.setItem('currentGameId', Math.floor(nextGameStart / intervalMs).toString());
-        localStorage.setItem('currentGameStart', nextGameStart.toString());
-        
-        return nextGameStart;
-    }
-}
-
-class PlayerGameState {
+class GameState {
     constructor() {
         this.selectedCards = [];
         this.playerName = 'Telegram User';
@@ -92,9 +11,9 @@ class PlayerGameState {
         this.calledNumbers = new Set();
         this.markedNumbers = { card1: new Set(), card2: new Set() };
         this.winningLines = { card1: [], card2: [] };
+        this.activePlayers = 0;
         this.isAudioEnabled = true;
         this.isAutoMark = true;
-        this.isObserver = false;
     }
 
     saveToSession() {
@@ -109,9 +28,9 @@ class PlayerGameState {
                 card2: Array.from(this.markedNumbers.card2)
             },
             winningLines: this.winningLines,
+            activePlayers: this.activePlayers,
             isAudioEnabled: this.isAudioEnabled,
-            isAutoMark: this.isAutoMark,
-            isObserver: this.isObserver
+            isAutoMark: this.isAutoMark
         }));
     }
 
@@ -129,9 +48,9 @@ class PlayerGameState {
                 card2: new Set(data.markedNumbers?.card2 || [])
             };
             this.winningLines = data.winningLines || { card1: [], card2: [] };
+            this.activePlayers = data.activePlayers || 0;
             this.isAudioEnabled = data.isAudioEnabled !== undefined ? data.isAudioEnabled : true;
             this.isAutoMark = data.isAutoMark !== undefined ? data.isAutoMark : true;
-            this.isObserver = data.isObserver !== undefined ? data.isObserver : false;
         }
     }
 
@@ -257,7 +176,7 @@ class BingoUtils {
         }
     }
 
-    // Deterministic Card Generation
+    // ===== NEW: Deterministic Card Generation =====
     static generateBingoCardNumbers(cardNumber) {
         const card = cardGenerator.generateCard(cardNumber);
         return card.numbers;
@@ -283,8 +202,8 @@ class BingoUtils {
         
         return html;
     }
+    // ===== END NEW =====
 }
 
-// Initialize global instances
-const globalGameState = new GlobalGameState();
-const gameState = new PlayerGameState();
+// Initialize global game state
+const gameState = new GameState();

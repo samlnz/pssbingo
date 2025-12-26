@@ -1,11 +1,10 @@
 // ====================================================
-// GAME.JS - Updated with Global Sync and Grid READY
+// GAME.JS - UPDATED with 3-second READY animation
 // ====================================================
 
 class GamePage {
     constructor() {
         this.gameState = gameState;
-        this.globalGameState = globalGameState;
         this.telegramManager = telegramManager;
         
         // BINGO ranges
@@ -33,6 +32,10 @@ class GamePage {
         this.bingoBtn = document.getElementById('bingoBtn');
         this.audioToggle = document.getElementById('audioToggle');
         
+        // NEW: READY animation elements
+        this.readyOverlay = null;
+        this.readyText = null;
+        
         // Audio elements
         this.numberCallAudio = document.getElementById('numberCallAudio');
         this.bingoAudio = document.getElementById('bingoAudio');
@@ -46,9 +49,8 @@ class GamePage {
         this.gameTimerId = null;
         this.nextCallTimerId = null;
         this.callInterval = 5000;
-        this.isGameActive = false;
+        this.isGameActive = false; // Start as false, will be true after READY
         this.winDetected = false;
-        this.isObserver = false;
         
         // Track winning pattern details
         this.winningPatternData = {
@@ -62,17 +64,18 @@ class GamePage {
     init() {
         this.loadGameState();
         this.setupUserInfo();
+        this.generateBingoCards();
         this.initializeDisplays();
         this.setupAudio();
+        this.checkForExistingCalls();
         this.setupEventListeners();
         
-        // Check game synchronization
-        this.checkGameSynchronization();
+        // Start with READY animation for 3 seconds
+        this.showReadyAnimation();
     }
 
     loadGameState() {
         this.gameState.loadFromSession();
-        this.isObserver = this.gameState.isObserver || this.gameState.selectedCards.length === 0;
     }
 
     setupUserInfo() {
@@ -80,190 +83,8 @@ class GamePage {
         this.playerAvatar.textContent = this.gameState.playerName.charAt(0).toUpperCase();
     }
 
-    checkGameSynchronization() {
-        const isGameActive = this.globalGameState.isGameActive();
-        const gameElapsed = this.globalGameState.getGameTimeElapsed();
-        
-        if (isGameActive && gameElapsed > 0) {
-            // Game is already in progress
-            this.handleGameInProgress(gameElapsed);
-        } else if (!isGameActive) {
-            // Wait for next game
-            this.handleWaitingForGame();
-        } else {
-            // Game should start now
-            this.startNewGame();
-        }
-    }
-
-    handleGameInProgress(elapsedTime) {
-        if (this.isObserver) {
-            this.setupObserverMode();
-            BingoUtils.showNotification('Joined as observer. Game in progress!', 'info');
-        } else {
-            this.generateBingoCards();
-            BingoUtils.showNotification('Game in progress! Joining now...', 'info');
-        }
-        
-        // Start game with elapsed time
-        this.startGameWithElapsedTime(elapsedTime);
-    }
-
-    handleWaitingForGame() {
-        const timeToNext = this.globalGameState.getTimeToNextGame();
-        
-        if (this.isObserver) {
-            this.setupObserverMode();
-            this.showWaitingMessage(timeToNext);
-        } else {
-            this.generateBingoCards();
-            this.showWaitingMessage(timeToNext);
-        }
-        
-        // Start countdown to next game
-        this.startNextGameCountdown(timeToNext);
-    }
-
-    startNewGame() {
-        if (this.isObserver) {
-            this.setupObserverMode();
-        } else {
-            this.generateBingoCards();
-        }
-        
-        // Show READY animation in the called numbers grid
-        this.showReadyInGrid();
-        
-        // Start game after READY animation
-        setTimeout(() => {
-            this.startGame();
-        }, 3000); // 3 seconds for READY animation
-    }
-
-    // NEW: READY animation in the called numbers grid
-    showReadyInGrid() {
-        const readyOverlay = document.createElement('div');
-        readyOverlay.className = 'grid-ready-overlay';
-        readyOverlay.innerHTML = `
-            <div class="ready-text">READY</div>
-        `;
-        
-        this.calledNumbersGrid.appendChild(readyOverlay);
-        
-        // Blink 3 times
-        let blinkCount = 0;
-        const blinkInterval = setInterval(() => {
-            readyOverlay.classList.toggle('visible');
-            blinkCount++;
-            
-            if (blinkCount >= 6) { // 3 blinks (on/off = 2 states per blink)
-                clearInterval(blinkInterval);
-                setTimeout(() => {
-                    readyOverlay.remove();
-                }, 500);
-            }
-        }, 500);
-        
-        // Play ready sound
-        if (this.readySound) {
-            this.readySound.play().catch(e => console.log('Ready sound play failed:', e));
-        }
-    }
-
-    setupObserverMode() {
-        this.playerCardsContainer.innerHTML = `
-            <div class="observer-message">
-                <div class="observer-icon">
-                    <i class="fas fa-eye"></i>
-                </div>
-                <h3>OBSERVER MODE</h3>
-                <p>You are observing this game</p>
-                <div class="observer-info">
-                    <p><i class="fas fa-users"></i> Watch other players compete</p>
-                    <p><i class="fas fa-bullhorn"></i> Numbers called every 5 seconds</p>
-                    <p><i class="fas fa-trophy"></i> First complete line wins!</p>
-                </div>
-                <div class="next-round-info" id="nextRoundInfo">
-                    <i class="fas fa-clock"></i>
-                    <span>Next round starts in: <span id="nextRoundTimer">--:--</span></span>
-                </div>
-            </div>
-        `;
-        
-        // Disable game controls for observers
-        this.bingoBtn.disabled = true;
-        this.bingoBtn.innerHTML = '<i class="fas fa-eye"></i> OBSERVER MODE';
-        this.bingoBtn.style.background = 'linear-gradient(135deg, #666, #333)';
-        
-        this.autoMarkBtn.disabled = true;
-        this.autoMarkBtn.innerHTML = '<i class="fas fa-eye"></i> OBSERVER MODE';
-        this.autoMarkBtn.style.background = 'linear-gradient(135deg, #666, #333)';
-    }
-
-    showWaitingMessage(timeToNext) {
-        if (this.isObserver) {
-            const nextRoundInfo = document.getElementById('nextRoundInfo');
-            if (nextRoundInfo) {
-                nextRoundInfo.innerHTML = `
-                    <i class="fas fa-clock"></i>
-                    <span>Waiting for next round: <span id="nextRoundTimer">${BingoUtils.formatTime(timeToNext)}</span></span>
-                `;
-            }
-        } else {
-            this.playerCardsContainer.innerHTML = `
-                <div class="waiting-message">
-                    <div class="waiting-icon">
-                        <i class="fas fa-hourglass-half"></i>
-                    </div>
-                    <h3>WAITING FOR NEXT ROUND</h3>
-                    <p>Next game starts in: <span id="nextGameTimer">${BingoUtils.formatTime(timeToNext)}</span></p>
-                    <div class="waiting-info">
-                        <p><i class="fas fa-cards"></i> You have selected cards: ${this.gameState.selectedCards.join(', ')}</p>
-                        <p><i class="fas fa-users"></i> Join the next game automatically</p>
-                        <p><i class="fas fa-trophy"></i> Get ready to win!</p>
-                    </div>
-                </div>
-            `;
-            
-            // Disable game controls while waiting
-            this.bingoBtn.disabled = true;
-            this.autoMarkBtn.disabled = true;
-        }
-    }
-
-    startNextGameCountdown(timeToNext) {
-        const timerElement = this.isObserver ? 
-            document.getElementById('nextRoundTimer') : 
-            document.getElementById('nextGameTimer');
-        
-        if (!timerElement) return;
-        
-        let remaining = timeToNext;
-        
-        const countdownInterval = setInterval(() => {
-            remaining--;
-            
-            if (remaining <= 0) {
-                clearInterval(countdownInterval);
-                timerElement.textContent = 'Starting...';
-                
-                // Reload page to join new game
-                setTimeout(() => {
-                    location.reload();
-                }, 2000);
-            } else {
-                timerElement.textContent = BingoUtils.formatTime(remaining);
-            }
-        }, 1000);
-    }
-
     generateBingoCards() {
         this.playerCardsContainer.innerHTML = '';
-        
-        if (this.gameState.selectedCards.length === 0) {
-            this.setupObserverMode();
-            return;
-        }
         
         this.gameState.selectedCards.forEach((cardNumber, index) => {
             const cardId = `card${index + 1}`;
@@ -347,82 +168,257 @@ class GamePage {
         return cardElement;
     }
 
+    // ===== NEW: READY ANIMATION =====
+    showReadyAnimation() {
+        // Create overlay
+        this.readyOverlay = document.createElement('div');
+        this.readyOverlay.className = 'ready-overlay';
+        this.readyOverlay.innerHTML = `
+            <div class="ready-container">
+                <div class="ready-text" id="readyText">READY</div>
+                <div class="countdown" id="countdown">3</div>
+            </div>
+        `;
+        
+        document.body.appendChild(this.readyOverlay);
+        
+        // Animate READY text
+        this.readyText = document.getElementById('readyText');
+        
+        // Animation sequence
+        this.animateReadyText();
+        
+        // Play ready sound if available
+        if (this.readySound) {
+            this.readySound.play().catch(e => console.log('Ready sound play failed:', e));
+        }
+        
+        // Countdown from 3
+        const countdownElement = document.getElementById('countdown');
+        let countdown = 3;
+        
+        const countdownInterval = setInterval(() => {
+            countdown--;
+            if (countdown > 0) {
+                countdownElement.textContent = countdown;
+                countdownElement.classList.add('pulse');
+                setTimeout(() => countdownElement.classList.remove('pulse'), 300);
+            } else {
+                clearInterval(countdownInterval);
+                countdownElement.textContent = 'GO!';
+                countdownElement.classList.add('go-animation');
+                
+                // Start game after 1 second
+                setTimeout(() => {
+                    this.removeReadyAnimation();
+                    this.startGame();
+                }, 1000);
+            }
+        }, 1000);
+    }
+
+    animateReadyText() {
+        const letters = this.readyText.textContent.split('');
+        this.readyText.innerHTML = '';
+        
+        letters.forEach((letter, index) => {
+            const span = document.createElement('span');
+            span.textContent = letter;
+            span.style.animationDelay = `${index * 0.1}s`;
+            this.readyText.appendChild(span);
+        });
+    }
+
+    removeReadyAnimation() {
+        if (this.readyOverlay) {
+            this.readyOverlay.classList.add('fade-out');
+            setTimeout(() => {
+                document.body.removeChild(this.readyOverlay);
+                this.readyOverlay = null;
+            }, 500);
+        }
+    }
+
     startGame() {
         this.isGameActive = true;
-        
-        // Generate 5 initial numbers for the game
-        this.generateInitialNumbers();
-        
-        // Start timers
         this.startTimers();
         this.startCaller();
+        BingoUtils.showNotification('Game started! Numbers will be called every 5 seconds', 'success');
+    }
+    // ===== END NEW =====
+
+    toggleNumberMark(cardId, number, cell) {
+        if (!this.isGameActive) return;
         
-        // Start background music if enabled
-        if (this.gameState.isAudioEnabled && this.backgroundMusic) {
-            this.backgroundMusic.play().catch(e => console.log('Background music play failed:', e));
+        const markedNumbers = this.gameState.markedNumbers[cardId];
+        
+        if (markedNumbers.has(number)) {
+            markedNumbers.delete(number);
+            cell.classList.remove('marked');
+        } else {
+            markedNumbers.add(number);
+            cell.classList.add('marked');
+            
+            this.checkForWinningLine(cardId);
         }
         
-        BingoUtils.showNotification('Game started! Numbers called every 5 seconds', 'success');
+        this.updateCardStats(cardId);
     }
 
-    startGameWithElapsedTime(elapsedTime) {
-        this.isGameActive = true;
+    updateCardStats(cardId) {
+        const markedCount = this.gameState.markedNumbers[cardId].size + 1;
+        const linesCount = this.gameState.winningLines[cardId].length;
         
-        // Generate numbers that would have been called up to now
-        this.generateNumbersForElapsedTime(elapsedTime);
+        document.getElementById(`${cardId}-marked`).textContent = markedCount;
+        document.getElementById(`${cardId}-lines`).textContent = linesCount;
         
-        // Start timers with elapsed time
-        this.gameState.gameTime = elapsedTime;
-        this.startTimers();
-        this.startCaller();
-        
-        // Start background music if enabled
-        if (this.gameState.isAudioEnabled && this.backgroundMusic) {
-            this.backgroundMusic.play().catch(e => console.log('Background music play failed:', e));
-        }
-        
-        BingoUtils.showNotification('Joined game in progress!', 'info');
+        this.updateBingoButton();
     }
 
-    generateInitialNumbers() {
-        // Generate 5 initial numbers
-        for (let i = 0; i < 5; i++) {
-            const number = this.generateNextNumber();
-            if (number) {
-                this.gameState.calledNumbers.add(number);
+    // ===== UPDATED: Improved win detection =====
+    checkForWinningLine(cardId) {
+        if (this.winDetected || !this.isGameActive) return;
+        
+        const markedNumbers = this.gameState.markedNumbers[cardId];
+        const calledNumbers = this.gameState.calledNumbers;
+        
+        // Check all possible winning patterns
+        const patterns = [
+            // Rows
+            [[0,0], [0,1], [0,2], [0,3], [0,4]],
+            [[1,0], [1,1], [1,2], [1,3], [1,4]],
+            [[2,0], [2,1], [2,2], [2,3], [2,4]],
+            [[3,0], [3,1], [3,2], [3,3], [3,4]],
+            [[4,0], [4,1], [4,2], [4,3], [4,4]],
+            // Columns
+            [[0,0], [1,0], [2,0], [3,0], [4,0]],
+            [[0,1], [1,1], [2,1], [3,1], [4,1]],
+            [[0,2], [1,2], [2,2], [3,2], [4,2]],
+            [[0,3], [1,3], [2,3], [3,3], [4,3]],
+            [[0,4], [1,4], [2,4], [3,4], [4,4]],
+            // Diagonals
+            [[0,0], [1,1], [2,2], [3,3], [4,4]],
+            [[0,4], [1,3], [2,2], [3,1], [4,0]],
+            // Four corners
+            [[0,0], [0,4], [4,0], [4,4]]
+        ];
+        
+        patterns.forEach((pattern, patternIndex) => {
+            let isComplete = true;
+            let allNumbersCalled = true;
+            const patternCells = [];
+            
+            pattern.forEach(([row, col]) => {
+                const cell = document.querySelector(`[data-card="${cardId}"][data-row="${row}"][data-col="${col}"]`);
+                if (!cell) return;
                 
-                if (this.gameState.isAutoMark && !this.isObserver) {
-                    this.autoMarkNumbers(number);
+                patternCells.push(cell);
+                const number = cell.dataset.number;
+                
+                // Check if marked (FREE is always marked)
+                if (number !== 'FREE' && !markedNumbers.has(parseInt(number))) {
+                    isComplete = false;
+                }
+                
+                // Check if called (FREE doesn't need to be called)
+                if (number !== 'FREE' && !calledNumbers.has(parseInt(number))) {
+                    allNumbersCalled = false;
+                }
+            });
+            
+            // VERIFIED WIN: Must be complete AND all numbers must have been called
+            if (isComplete && allNumbersCalled && patternCells.length === pattern.length) {
+                const patternName = this.getPatternName(patternIndex, pattern);
+                
+                // Check if this pattern is already recorded
+                const existingIndex = this.winningPatternData[cardId].winningLines.findIndex(
+                    line => line.name === patternName
+                );
+                
+                if (existingIndex === -1) {
+                    // Record new winning pattern
+                    this.winningPatternData[cardId].winningLines.push({
+                        name: patternName,
+                        cells: pattern.map(([row, col]) => row * 5 + col)
+                    });
+                    
+                    // Add winning cells
+                    pattern.forEach(([row, col]) => {
+                        const cellIndex = row * 5 + col;
+                        if (!this.winningPatternData[cardId].winningCells.includes(cellIndex)) {
+                            this.winningPatternData[cardId].winningCells.push(cellIndex);
+                        }
+                    });
+                    
+                    // Highlight cells
+                    patternCells.forEach(cell => {
+                        cell.classList.add('winning');
+                    });
+                    
+                    // Add to game state
+                    this.gameState.winningLines[cardId].push(patternName);
+                    
+                    console.log(`Verified win on ${cardId}: ${patternName}`);
+                    this.checkForAutoWin();
                 }
             }
-        }
+        });
         
-        this.updateCalledNumbersDisplay();
-        this.numbersCalled.textContent = this.gameState.calledNumbers.size;
+        this.updateCardStats(cardId);
     }
 
-    generateNumbersForElapsedTime(elapsedTime) {
-        // Calculate how many numbers should have been called
-        const numbersCalled = Math.min(Math.floor(elapsedTime / 5) + 5, 75);
-        
-        // Generate those numbers
-        for (let i = 0; i < numbersCalled; i++) {
-            const number = this.generateNextNumber();
-            if (number) {
-                this.gameState.calledNumbers.add(number);
-                
-                if (this.gameState.isAutoMark && !this.isObserver) {
-                    this.autoMarkNumbers(number);
-                }
-            }
-        }
-        
-        this.updateCalledNumbersDisplay();
-        this.numbersCalled.textContent = this.gameState.calledNumbers.size;
+    getPatternName(patternIndex, pattern) {
+        if (patternIndex < 5) return `Row ${patternIndex + 1}`;
+        if (patternIndex < 10) return `Column ${String.fromCharCode(65 + (patternIndex - 5))}`;
+        if (patternIndex === 10) return 'Diagonal (Top-Left to Bottom-Right)';
+        if (patternIndex === 11) return 'Diagonal (Top-Right to Bottom-Left)';
+        if (patternIndex === 12) return 'Four Corners';
+        return `Pattern ${patternIndex + 1}`;
     }
 
-    // [Rest of the game.js methods remain the same as before - toggleNumberMark, checkForWinningLine, etc.]
-    // Only showing changes above due to character limit
+    checkForAutoWin() {
+        const totalLines = this.gameState.winningLines.card1.length + this.gameState.winningLines.card2.length;
+        
+        if (totalLines > 0 && !this.winDetected) {
+            this.winDetected = true;
+            this.stopGame();
+            
+            // Wait 1 second to show the winning pattern, then go to winner page
+            setTimeout(() => {
+                this.claimBingo();
+            }, 1000);
+        }
+    }
+
+    stopGame() {
+        this.isGameActive = false;
+        
+        clearInterval(this.callIntervalId);
+        clearInterval(this.gameTimerId);
+        clearInterval(this.nextCallTimerId);
+        
+        this.callIntervalId = null;
+        this.gameTimerId = null;
+        this.nextCallTimerId = null;
+        
+        this.bingoBtn.disabled = true;
+        this.autoMarkBtn.disabled = true;
+        
+        BingoUtils.playAudio(this.bingoAudio, 0.8);
+        BingoUtils.showNotification('BINGO! Game stopped. Preparing winner announcement...', 'success');
+    }
+
+    updateBingoButton() {
+        const hasWinningLine = this.gameState.winningLines.card1.length > 0 || this.gameState.winningLines.card2.length > 0;
+        this.bingoBtn.disabled = !hasWinningLine;
+        
+        if (hasWinningLine) {
+            const totalLines = this.gameState.winningLines.card1.length + this.gameState.winningLines.card2.length;
+            this.bingoBtn.innerHTML = `<i class="fas fa-trophy"></i> BINGO! (${totalLines} Line${totalLines > 1 ? 's' : ''})`;
+        } else {
+            this.bingoBtn.innerHTML = `<i class="fas fa-trophy"></i> BINGO! I HAVE A LINE!`;
+        }
+    }
 
     initializeDisplays() {
         this.createCalledNumbersGrid();
@@ -486,7 +482,7 @@ class GamePage {
     }
 
     updateDisplays() {
-        this.activePlayers.textContent = Math.floor(Math.random() * 100) + 50; // Simulated
+        this.activePlayers.textContent = this.gameState.activePlayers;
     }
 
     generateNextNumber() {
@@ -516,7 +512,7 @@ class GamePage {
         this.updateNumberDisplay(number);
         this.updateCalledNumbersDisplay();
         
-        if (this.gameState.isAutoMark && !this.isObserver) {
+        if (this.gameState.isAutoMark) {
             this.autoMarkNumbers(number);
         }
         
@@ -589,24 +585,22 @@ class GamePage {
         });
     }
 
+    checkForExistingCalls() {
+        // Don't generate any numbers before READY animation
+        // Numbers will start after the 3-second READY animation
+    }
+
     startTimers() {
         this.startGameTimer();
     }
 
     startGameTimer() {
-        if (this.gameTimerId) clearInterval(this.gameTimerId);
-        
         this.gameTimerId = setInterval(() => {
             this.gameState.gameTime++;
             
             const minutes = Math.floor(this.gameState.gameTime / 60);
             const seconds = this.gameState.gameTime % 60;
             this.gameTime.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-            
-            // Check if game should end (5 minutes)
-            if (this.gameState.gameTime >= 300) {
-                this.endGame();
-            }
         }, 1000);
     }
 
@@ -623,8 +617,6 @@ class GamePage {
     }
 
     startNextCallTimer() {
-        if (this.nextCallTimerId) clearInterval(this.nextCallTimerId);
-        
         this.nextCallTimerId = setInterval(() => {
             this.nextCallTime--;
             this.updateNextCallTimer();
@@ -636,70 +628,46 @@ class GamePage {
     }
 
     updateNextCallTimer() {
-        if (this.nextCallTimer) {
-            this.nextCallTimer.textContent = this.nextCallTime.toString().padStart(2, '0');
-        }
+        this.nextCallTimer.textContent = this.nextCallTime.toString().padStart(2, '0');
     }
 
     setupAudio() {
         if (this.numberCallAudio) this.numberCallAudio.volume = 0.7;
         if (this.bingoAudio) this.bingoAudio.volume = 0.8;
         if (this.backgroundMusic) this.backgroundMusic.volume = 0.3;
-        if (this.readySound) this.readySound.volume = 0.5;
+        
+        // Don't play background music until game starts
+        if (this.gameState.isAudioEnabled && this.backgroundMusic) {
+            this.backgroundMusic.pause();
+        }
     }
 
     endGame() {
         this.stopGame();
-        BingoUtils.showNotification('Game ended! Next round starts soon.', 'info');
-        
-        // Start countdown to next game
-        setTimeout(() => {
-            const timeToNext = this.globalGameState.getTimeToNextGame();
-            this.showWaitingMessage(timeToNext);
-            this.startNextGameCountdown(timeToNext);
-        }, 2000);
-    }
-
-    stopGame() {
-        this.isGameActive = false;
-        
-        clearInterval(this.callIntervalId);
-        clearInterval(this.gameTimerId);
-        clearInterval(this.nextCallTimerId);
-        
-        this.callIntervalId = null;
-        this.gameTimerId = null;
-        this.nextCallTimerId = null;
-        
-        if (!this.isObserver) {
-            this.bingoBtn.disabled = true;
-            this.autoMarkBtn.disabled = true;
-        }
+        BingoUtils.showNotification('All numbers have been called! Game over.', 'info');
     }
 
     setupEventListeners() {
-        if (!this.isObserver) {
-            this.autoMarkBtn.addEventListener('click', () => {
-                if (!this.isGameActive) return;
-                
-                this.gameState.isAutoMark = !this.gameState.isAutoMark;
-                this.autoMarkBtn.innerHTML = this.gameState.isAutoMark ? 
-                    `<i class="fas fa-robot"></i> AUTO-MARK: ON` :
-                    `<i class="fas fa-robot"></i> AUTO-MARK: OFF`;
-                this.autoMarkBtn.style.background = this.gameState.isAutoMark ?
-                    'linear-gradient(135deg, #4CAF50, #2E7D32)' :
-                    'linear-gradient(135deg, #f44336, #c62828)';
-                
-                this.gameState.saveToSession();
-            });
+        this.autoMarkBtn.addEventListener('click', () => {
+            if (!this.isGameActive) return;
             
-            this.bingoBtn.addEventListener('click', () => {
-                if (this.bingoBtn.disabled || !this.isGameActive) return;
-                
-                this.stopGame();
-                this.claimBingo();
-            });
-        }
+            this.gameState.isAutoMark = !this.gameState.isAutoMark;
+            this.autoMarkBtn.innerHTML = this.gameState.isAutoMark ? 
+                `<i class="fas fa-robot"></i> AUTO-MARK: ON` :
+                `<i class="fas fa-robot"></i> AUTO-MARK: OFF`;
+            this.autoMarkBtn.style.background = this.gameState.isAutoMark ?
+                'linear-gradient(135deg, #4CAF50, #2E7D32)' :
+                'linear-gradient(135deg, #f44336, #c62828)';
+            
+            this.gameState.saveToSession();
+        });
+        
+        this.bingoBtn.addEventListener('click', () => {
+            if (this.bingoBtn.disabled || !this.isGameActive) return;
+            
+            // Manual BINGO - verify again before claiming
+            this.verifyManualWin();
+        });
         
         this.audioToggle.addEventListener('click', () => {
             this.gameState.isAudioEnabled = !this.gameState.isAudioEnabled;
@@ -740,6 +708,65 @@ class GamePage {
         });
     }
 
+    verifyManualWin() {
+        // Double-check all winning patterns before claiming
+        let hasVerifiedWin = false;
+        
+        this.gameState.selectedCards.forEach((_, index) => {
+            const cardId = `card${index + 1}`;
+            const markedNumbers = this.gameState.markedNumbers[cardId];
+            const calledNumbers = this.gameState.calledNumbers;
+            
+            // Re-check all patterns
+            const patterns = [
+                [[0,0], [0,1], [0,2], [0,3], [0,4]],
+                [[1,0], [1,1], [1,2], [1,3], [1,4]],
+                [[2,0], [2,1], [2,2], [2,3], [2,4]],
+                [[3,0], [3,1], [3,2], [3,3], [3,4]],
+                [[4,0], [4,1], [4,2], [4,3], [4,4]],
+                [[0,0], [1,0], [2,0], [3,0], [4,0]],
+                [[0,1], [1,1], [2,1], [3,1], [4,1]],
+                [[0,2], [1,2], [2,2], [3,2], [4,2]],
+                [[0,3], [1,3], [2,3], [3,3], [4,3]],
+                [[0,4], [1,4], [2,4], [3,4], [4,4]],
+                [[0,0], [1,1], [2,2], [3,3], [4,4]],
+                [[0,4], [1,3], [2,2], [3,1], [4,0]],
+                [[0,0], [0,4], [4,0], [4,4]]
+            ];
+            
+            patterns.forEach((pattern, patternIndex) => {
+                let isComplete = true;
+                let allNumbersCalled = true;
+                
+                pattern.forEach(([row, col]) => {
+                    const cell = document.querySelector(`[data-card="${cardId}"][data-row="${row}"][data-col="${col}"]`);
+                    if (!cell) return;
+                    
+                    const number = cell.dataset.number;
+                    
+                    if (number !== 'FREE' && !markedNumbers.has(parseInt(number))) {
+                        isComplete = false;
+                    }
+                    
+                    if (number !== 'FREE' && !calledNumbers.has(parseInt(number))) {
+                        allNumbersCalled = false;
+                    }
+                });
+                
+                if (isComplete && allNumbersCalled) {
+                    hasVerifiedWin = true;
+                }
+            });
+        });
+        
+        if (hasVerifiedWin) {
+            this.stopGame();
+            this.claimBingo();
+        } else {
+            BingoUtils.showNotification('No valid winning line detected yet! Keep playing.', 'warning');
+        }
+    }
+
     claimBingo() {
         // Get all marked numbers for each card
         const markedNumbers1 = Array.from(this.gameState.markedNumbers.card1);
@@ -760,7 +787,9 @@ class GamePage {
             totalLines: this.gameState.winningLines.card1.length + this.gameState.winningLines.card2.length,
             gameTime: this.gameState.gameTime,
             calledNumbers: this.gameState.calledNumbers.size,
+            // Save detailed winning pattern data
             winningPatternData: this.winningPatternData,
+            // Save card data for displaying on winner page
             cardData: {
                 card1: {
                     numbers: card1Numbers,
