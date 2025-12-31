@@ -39,9 +39,20 @@ function isLikelyTransferText(text) {
 }
 
 bot.start((ctx) => {
-  return ctx.reply('Welcome to SyncBingo deposit bot. Forward your transfer/receipt message to me to register a deposit.', Markup.inlineKeyboard([
-    Markup.button.url('Launch Mini App', `${APP_URL}`)
-  ]));
+  return ctx.reply('Welcome to SyncBingo deposit bot. Forward your transfer/receipt message to me to register a deposit.', {
+    reply_markup: {
+      inline_keyboard: [[{ text: 'Launch Mini App', web_app: { url: APP_URL } }]]
+    }
+  });
+});
+
+// Command to explicitly send the web app/open button
+bot.command('open', (ctx) => {
+  return ctx.reply('Open SyncBingo in Telegram:', {
+    reply_markup: {
+      inline_keyboard: [[{ text: 'Open SyncBingo', web_app: { url: APP_URL } }]]
+    }
+  });
 });
 
 bot.on('message', async (ctx) => {
