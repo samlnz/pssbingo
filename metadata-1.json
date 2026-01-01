@@ -1,8 +1,0 @@
-
-{
-  "name": "SyncBingo Pro",
-  "description": "A world-class, real-time synchronized Bingo application featuring deterministic card generation, live calling logic, and a high-fidelity retro-modern aesthetic.",
-  "requestFramePermissions": [
-    "microphone"
-  ]
-}
